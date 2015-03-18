@@ -192,25 +192,29 @@ namespace Sphere
 }
 int main(){
 	float total_time = 0;
-	
+
+
 	if (!Surface::loadFile("surfaceAB.ply"))
 		cout << "not loaded" << endl;
 	else{
 		if (!Sphere::loadFile("sphere.ply"))
 			cout << "not loaded" << endl;
 		else{
+			CUDA c;
+			c.Init((float *)(Surface::vertex.data()), 
+									(unsigned int* )(Surface::faces.data()), 
+									(float *)(Sphere::vertex.data()),
+									Surface::vertex.size(), 
+									Surface::faces.size(),
+									Sphere::vertex.size());
 			for(int i = 0;i < M;++i){
-				CudaIntercept(total_time, 
-					(float *)(Surface::vertex.data()), 
-					(unsigned int* )(Surface::faces.data()), 
-					(float *)(Sphere::vertex.data()),
-					Surface::vertex.size(), 
-					Surface::faces.size(),
-					Sphere::vertex.size());
+				c.CudaIntercept(total_time);
 			}
 
 			printf("Total time: %f msecs.\n", total_time);
 			printf("Average: %f msecs.\n", total_time / 2000);
+
+			c.Destroy();
 		}
 	}
 

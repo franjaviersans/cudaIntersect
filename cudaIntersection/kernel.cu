@@ -83,10 +83,11 @@ __global__ void Intercept(const float * const p1, const float * const p2,
 {
 
 	//Shared memory declaration
-	extern __shared__ float buffer[];
+	extern __shared__ char buffer[];
 
 	float * dir = (float *)&buffer[0];
-    float * origin = (float *)&buffer[sizeC * 3];
+    float * origin = (float *)&buffer[sizeC * 3 * sizeof(float)];
+	bool * sharedinter = (bool *)&buffer[sizeC * 3 * sizeof(float) + 3 * sizeof(float)];
 
 	unsigned int tid = threadIdx.x;
 	unsigned int globalTid = blockDim.x * blockIdx.x + threadIdx.x;
@@ -94,9 +95,14 @@ __global__ void Intercept(const float * const p1, const float * const p2,
 	float lt[16];
 	bool inter = false;
 	
-	if(tid < 3)
+	
+	if(tid == 0)
 	{
-		origin[tid] = p1[tid];
+		*sharedinter = false;
+		vaux[0] = p1[0];
+		vaux[1] = p1[1];
+		vaux[2] = p1[2];
+		MULT(origin, lt, vaux);
 	}
 	if(tid < 16){
 		lt[tid] = x[tid];
@@ -136,33 +142,64 @@ __global__ void Intercept(const float * const p1, const float * const p2,
 		
 
 		//First test. Ray-Triangle Intersection
-		for(unsigned int i=0; i < sizeC && !inter;++i)
+		for(unsigned int i=0; i < sizeC && !*sharedinter;++i)
 		{
-			inter = ray_triangle(v0, v1, v2, origin, &dir[i * 3]);
+			*sharedinter = ray_triangle(v0, v1, v2, origin, &(dir[i * 3]));
 		}
 
 		//Second Test
-		for(unsigned int j=0;j < N && !inter;++j){
-			inter = Test2(v0, j) || Test2(v1, j) || Test2(v2, j);
+		for(unsigned int j=0;j < N && !*sharedinter;++j)
+		{
+			*sharedinter = Test2(v0, j) || Test2(v1, j) || Test2(v2, j);
 		}
+
+		__syncthreads();
+		if(tid == 0 && *sharedinter) *globalinter = true;
 	}
 
 }
 
 
-bool CudaIntercept(float &time, float * A, unsigned int  * B, float *C, unsigned int sizeA, unsigned int sizeB, unsigned int sizeC){
+bool CUDA::CudaIntercept(float &time){
+	bool h_inter = false;
 
-	float * d_p1;
-	float * d_p2;
-	float * d_A;
-	unsigned int * d_B;
-	float * d_x;
-	bool * d_inter, h_inter = false;
+	checkCudaErrors(cudaMemcpy(d_inter, &h_inter,  sizeof(bool), cudaMemcpyHostToDevice));
+
+	dim3 BlockDim(128, 1, 1);
+	dim3 GridDim((sizeB + BlockDim.x)/BlockDim.x, 1, 1);
+
+	//printf("Num Faces: %d\n ThreadsxBlock: %d\n Num Blocks: %d\n", sizeB, BlockDim.x, GridDim.x);
+
+	GpuTimer timer;
+
+	timer.Start();
+	Intercept<<< GridDim, BlockDim, sizeC * 3 * sizeof(float) + 3 * sizeof(float) + sizeof(bool) >>>(d_p1, d_p2, d_A, d_B, sizeC, sizeA, sizeB, d_x, d_inter);
+	timer.Stop();
+
+	time += timer.Elapsed();
+	cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError());
+
+	checkCudaErrors(cudaMemcpy(&h_inter, d_inter,  sizeof(bool), cudaMemcpyDeviceToHost));
+
+	
+
+	
+
+	return h_inter;
+
+}
+
+
+__host__ void CUDA::Init(float * A, unsigned int  * B, float *C, unsigned int sA, unsigned int sB, unsigned int sC){
 	float center[] = {0.0f,0.0f,0.0f};
 	float transform[] = {	1.0f,0.0f,0.0f,0.0f,
 							0.0f,1.0f,0.0f,0.0f,
 							0.0f,0.0f,1.0f,0.0f,
 							0.0f,0.0f,0.0f,1.0f};
+
+	sizeA = sA;
+	sizeB = sB;
+	sizeC = sC;
 
 	checkCudaErrors(cudaSetDevice(0));
 
@@ -181,33 +218,16 @@ bool CudaIntercept(float &time, float * A, unsigned int  * B, float *C, unsigned
 	checkCudaErrors(cudaMemcpy(d_A, A, sizeA * 3 * sizeof(float), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_B, B, sizeB * 3 * sizeof(unsigned int), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_x, transform,  16 * sizeof(float), cudaMemcpyHostToDevice));
-	checkCudaErrors(cudaMemcpy(d_inter, &h_inter,  sizeof(bool), cudaMemcpyHostToDevice));
+	
 
+}
 
-
-	//checkCudaErrors(cudaMemcpy(dev_a, a, size * sizeof(int), cudaMemcpyHostToDevice));
-	dim3 BlockDim(512, 1, 1);
-	dim3 GridDim((sizeB + BlockDim.x)/BlockDim.x, 1, 1);
-
-	//printf("Num Faces: %d\n ThreadsxBlock: %d\n Num Blocks: %d\n", sizeB, BlockDim.x, GridDim.x);
-
-	GpuTimer timer;
-
-	timer.Start();
-	Intercept<<< GridDim, BlockDim, sizeC * 3 * sizeof(float) >>>(d_p1, d_p2, d_A, d_B, sizeC, sizeA, sizeB, d_x, d_inter);
-	timer.Stop();
-
-	checkCudaErrors(cudaMemcpy(&h_inter, d_inter,  sizeof(bool), cudaMemcpyDeviceToHost));
-
-	time += timer.Elapsed();
-	cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError());
-
+__host__ void CUDA::Destroy(){
 	//Free memory
 	checkCudaErrors(cudaFree(d_p1));
 	checkCudaErrors(cudaFree(d_p2));
 	checkCudaErrors(cudaFree(d_A));
 	checkCudaErrors(cudaFree(d_B));
-
-	return h_inter;
-
+	checkCudaErrors(cudaFree(d_x));
+	checkCudaErrors(cudaFree(d_inter));
 }

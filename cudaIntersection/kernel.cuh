@@ -11,11 +11,14 @@
 
 #include <stdio.h>
 
-#define M 2000
-#define N 10
+
 
 //#define ALLFALSE
 //#define ALLTRUE
+
+
+#define M 2000
+#define N 200
 
 #define EPSILON 0.000001
 #define CROSS(dest, v1, v2) \
@@ -34,6 +37,22 @@
 	dest[2] = mat[8] * p[0] + mat[9] * p[1] + mat[10] * p[2] + mat[11] * 1.0f; 
 
 
+class CUDA{
+float * d_p1;
+float * d_p2;
+float * d_A;
+unsigned int * d_B;
+float * d_x;
+bool * d_inter;
+int sizeA, sizeB, sizeC;
+
+public:
+__host__ void Init(float * A, unsigned int  * B, float *C, unsigned int sA, unsigned int sB, unsigned int sC);
+__host__ void Destroy();
+__host__ bool CudaIntercept(float &time);
+};
+
+
 __device__ bool ray_triangle( const float V1[3],  // Triangle vertices
                            const float V2[3],
                            const float V3[3],
@@ -41,14 +60,16 @@ __device__ bool ray_triangle( const float V1[3],  // Triangle vertices
                            const float D[3]  //Ray direction
 						   );
 
+__device__ bool Test2(float v[3], unsigned int i);
+
 
 __global__ void Intercept(const float * const p1, const float * const p2,
 			   const float * const A, const unsigned int * const B,
 			   const unsigned int sizeC, const unsigned int sizeA,
-			   const unsigned int sizeB, bool * inter);
+			   const unsigned int sizeB, 
+			   const float * const x,
+			   bool * globalinter);
 
-
-bool CudaIntercept(float &time, float * A, unsigned int  * B, float *C, unsigned int sizeA, unsigned int sizeB, unsigned int sizeC);
 
 
 #endif
