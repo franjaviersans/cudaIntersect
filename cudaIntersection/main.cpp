@@ -50,15 +50,15 @@ namespace Surface
 		switch (iIndex)
 		{
 		case 0:
-			Surface::tempVertex.x = ply_get_argument_value(argument);
+			Surface::tempVertex.x = float(ply_get_argument_value(argument));
 			iIndex++;
 			break;
 		case 1:
-			Surface::tempVertex.y = ply_get_argument_value(argument);
+			Surface::tempVertex.y = float(ply_get_argument_value(argument));
 			iIndex++;
 			break;
 		case 2:
-			Surface::tempVertex.z = ply_get_argument_value(argument);
+			Surface::tempVertex.z = float(ply_get_argument_value(argument));
 			Surface::vertex.push_back(Surface::tempVertex);
 			iIndex = 0;
 			break;
@@ -136,15 +136,15 @@ namespace Sphere
 		switch (iIndex)
 		{
 		case 0:
-			tempVertex.x = ply_get_argument_value(argument);
+			tempVertex.x = float(ply_get_argument_value(argument));
 			iIndex++;
 			break;
 		case 1:
-			tempVertex.y = ply_get_argument_value(argument);
+			tempVertex.y = float(ply_get_argument_value(argument));
 			iIndex++;
 			break;
 		case 2:
-			tempVertex.z = ply_get_argument_value(argument);
+			tempVertex.z = float(ply_get_argument_value(argument));
 			vertex.push_back(tempVertex);
 			iIndex = 0;
 			break;

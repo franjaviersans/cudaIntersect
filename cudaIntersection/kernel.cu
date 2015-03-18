@@ -87,12 +87,12 @@ __global__ void Intercept(const float * const p1, const float * const p2,
 
 	float * dir = (float *)&buffer[0];
     float * origin = (float *)&buffer[sizeC * 3 * sizeof(float)];
-	bool * sharedinter = (bool *)&buffer[sizeC * 3 * sizeof(float) + 3 * sizeof(float)];
+	float * lt = (float *)&buffer[sizeC * 3 * sizeof(float) + 3 * sizeof(float)];
+	bool * sharedinter = (bool *)&buffer[sizeC * 3 * sizeof(float) + 3 * sizeof(float) + 16 *sizeof(float)];
 
 	unsigned int tid = threadIdx.x;
 	unsigned int globalTid = blockDim.x * blockIdx.x + threadIdx.x;
 	float v0[3], v1[3], v2[3], vaux[3];
-	float lt[16];
 	bool inter = false;
 	
 	
@@ -104,9 +104,7 @@ __global__ void Intercept(const float * const p1, const float * const p2,
 		vaux[2] = p1[2];
 		MULT(origin, lt, vaux);
 	}
-	if(tid < 16){
-		lt[tid] = x[tid];
-	}
+	if(tid < 16) lt[tid] = x[tid];
 	__syncthreads();
 
 	//Copy all the data of C
@@ -118,7 +116,11 @@ __global__ void Intercept(const float * const p1, const float * const p2,
 	}
 	__syncthreads();
 
+	
+
 	if(globalTid < sizeB){
+		
+
 		//Point 0
 		vaux[0] = A[B[globalTid * 3] * 3];
 		vaux[1] = A[B[globalTid * 3] * 3 + 1];
@@ -142,45 +144,90 @@ __global__ void Intercept(const float * const p1, const float * const p2,
 		
 
 		//First test. Ray-Triangle Intersection
-		for(unsigned int i=0; i < sizeC && !*sharedinter;++i)
+		unsigned int i;
+		for(i=0; i < sizeC && !*globalinter;++i)
 		{
-			*sharedinter = ray_triangle(v0, v1, v2, origin, &(dir[i * 3]));
+			inter = ray_triangle(v0, v1, v2, origin, &(dir[i * 3]));
+			#ifdef ALLTEST
+				if(inter) *globalinter = false;
+			#else
+				if(inter) *globalinter = true;
+			#endif
 		}
-
-		//Second Test
-		for(unsigned int j=0;j < N && !*sharedinter;++j)
-		{
-			*sharedinter = Test2(v0, j) || Test2(v1, j) || Test2(v2, j);
-		}
-
-		__syncthreads();
-		if(tid == 0 && *sharedinter) *globalinter = true;
+		//if(globalTid == 0)printf("%d \n",i);
 	}
 
 }
 
+
+__global__ void SecondTest(	const float * const A, const unsigned int sizeA, bool * const globalinter)
+{
+	unsigned int globalTid = blockDim.x * blockIdx.x + threadIdx.x;
+
+	bool inter = false;
+
+	float v[3];
+	
+	if(globalTid < sizeA)
+	{
+		v[0] = A[globalTid * 3];
+		v[1] = A[globalTid * 3 + 1];
+		v[2] = A[globalTid * 3 + 2];
+
+		//Second Test
+		unsigned int j;
+		for(j=0;j < N && !*globalinter;++j)
+		{
+			inter = Test2(v, j);
+			#ifdef ALLTEST
+				if(inter) *globalinter = false;
+			#else
+				if(inter) *globalinter = true;
+			#endif
+		}
+		//if(globalTid == 0)printf("%d \n",j);
+	}
+}
 
 bool CUDA::CudaIntercept(float &time){
 	bool h_inter = false;
 
 	checkCudaErrors(cudaMemcpy(d_inter, &h_inter,  sizeof(bool), cudaMemcpyHostToDevice));
 
+	//Each thread for each triangle
 	dim3 BlockDim(128, 1, 1);
 	dim3 GridDim((sizeB + BlockDim.x)/BlockDim.x, 1, 1);
-
+	//printf("(1:%d)", h_inter);
 	//printf("Num Faces: %d\n ThreadsxBlock: %d\n Num Blocks: %d\n", sizeB, BlockDim.x, GridDim.x);
 
+	//First test with timer
 	GpuTimer timer;
-
 	timer.Start();
-	Intercept<<< GridDim, BlockDim, sizeC * 3 * sizeof(float) + 3 * sizeof(float) + sizeof(bool) >>>(d_p1, d_p2, d_A, d_B, sizeC, sizeA, sizeB, d_x, d_inter);
+	Intercept<<< GridDim, BlockDim, 100 * 3 * sizeof(float) + 3 * sizeof(float) + sizeof(bool) + 16 *sizeof(float) >>>(d_p1, d_p2, d_A, d_B, 100, sizeA, sizeB, d_x, d_inter);
 	timer.Stop();
 
 	time += timer.Elapsed();
 	cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError());
 
 	checkCudaErrors(cudaMemcpy(&h_inter, d_inter,  sizeof(bool), cudaMemcpyDeviceToHost));
+	//printf("(2:%d)", h_inter);
+	if(!h_inter){
 
+		//One thread for each point in the surface
+		dim3 BlockDim2(128, 1, 1);
+		dim3 GridDim2((sizeA + BlockDim.x)/BlockDim.x, 1, 1);
+
+		//Second test with timer
+		timer.Start();
+		SecondTest<<< GridDim2, BlockDim2>>>(d_A, sizeA, d_inter);
+		timer.Stop();
+
+		time += timer.Elapsed();
+		cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError());
+
+		checkCudaErrors(cudaMemcpy(&h_inter, d_inter,  sizeof(bool), cudaMemcpyDeviceToHost));
+		//printf("(3:%d)", h_inter);
+	}
 	
 
 	
