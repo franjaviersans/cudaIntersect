@@ -201,9 +201,9 @@ int main(){
 			cout << "not loaded" << endl;
 		else{
 			CUDA c;
-			c.Init((float *)(Surface::vertex.data()), 
-									(unsigned int* )(Surface::faces.data()), 
-									(float *)(Sphere::vertex.data()),
+			c.Init((float3 *)(Surface::vertex.data()), 
+									(uint3* )(Surface::faces.data()), 
+									(float3 *)(Sphere::vertex.data()),
 									Surface::vertex.size(), 
 									Surface::faces.size(),
 									Sphere::vertex.size());

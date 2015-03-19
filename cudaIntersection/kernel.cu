@@ -1,10 +1,10 @@
 #include "kernel.cuh"
 
-__device__ bool ray_triangle( const float V1[3],  // Triangle vertices
-                           const float V2[3],
-                           const float V3[3],
-                           const float O[3],  //Ray origin
-                           const float D[3]  //Ray direction
+__device__ bool ray_triangle( const float3 V1,  // Triangle vertices
+                           const float3 V2,
+                           const float3 V3,
+                           const float3 O,  //Ray origin
+                           const float3 D  //Ray direction
 						   )
 {
 
@@ -16,8 +16,8 @@ __device__ bool ray_triangle( const float V1[3],  // Triangle vertices
 		return true;
 	#endif
 
-	float e1[3], e2[3];  //Edge1, Edge2
-	float P[3], Q[3], T[3];
+	float3 e1, e2;  //Edge1, Edge2
+	float3 P, Q, T;
 	float det, inv_det, u, v;
 	float t;
  
@@ -60,7 +60,7 @@ __device__ bool ray_triangle( const float V1[3],  // Triangle vertices
 }
 
 
-__device__ bool Test2(float v[3], unsigned int i){
+__device__ bool Test2(float3 v, unsigned int i){
 
 	#ifdef ALLFALSE
 		return false;
@@ -70,12 +70,12 @@ __device__ bool Test2(float v[3], unsigned int i){
 		return true;
 	#endif
 
-	return v[0] * v[0] + v[1] * v[1] < v[2] * v[2] + i * i;
+	return v.x * v.x + v.y * v.y < v.z * v.z + i * i;
 
 }
 
-__global__ void Intercept(const float * const p1, const float * const p2,
-			   const float * const A, const unsigned int * const B,
+__global__ void Intercept(const float3 * const p1, const float3 * const p2,
+			   const float3 * const A, const uint3 * const B,
 			   const unsigned int sizeC, const unsigned int sizeA,
 			   const unsigned int sizeB, 
 			   const float * const x,
@@ -85,24 +85,22 @@ __global__ void Intercept(const float * const p1, const float * const p2,
 	//Shared memory declaration
 	extern __shared__ char buffer[];
 
-	float * dir = (float *)&buffer[0];
-    float * origin = (float *)&buffer[sizeC * 3 * sizeof(float)];
-	float * lt = (float *)&buffer[sizeC * 3 * sizeof(float) + 3 * sizeof(float)];
-	bool * sharedinter = (bool *)&buffer[sizeC * 3 * sizeof(float) + 3 * sizeof(float) + 16 *sizeof(float)];
+	float3 * dir = (float3 *)&buffer[0];
+    float3 * origin = (float3 *)&buffer[sizeC * sizeof(float3)];
+	float * lt = (float *)&buffer[sizeC * sizeof(float3) + sizeof(float3)];
+	bool * sharedinter = (bool *)&buffer[sizeC * sizeof(float3) + sizeof(float3) + 16 *sizeof(float)];
 
 	unsigned int tid = threadIdx.x;
 	unsigned int globalTid = blockDim.x * blockIdx.x + threadIdx.x;
-	float v0[3], v1[3], v2[3], vaux[3];
+	float3 v0, v1, v2, vaux;
 	bool inter = false;
 	
 	
 	if(tid == 0)
 	{
 		*sharedinter = false;
-		vaux[0] = p1[0];
-		vaux[1] = p1[1];
-		vaux[2] = p1[2];
-		MULT(origin, lt, vaux);
+		vaux = *p1;
+		MULT((*origin), lt, vaux);
 	}
 	if(tid < 16) lt[tid] = x[tid];
 	__syncthreads();
@@ -110,16 +108,14 @@ __global__ void Intercept(const float * const p1, const float * const p2,
 	//Copy all the data of C
 	if(tid < sizeC)
 	{
-		v0[0] = p2[tid * 3];
-		v0[1] = p2[tid * 3 + 1];
-		v0[2] = p2[tid * 3 + 2];
-
+		v0 = p2[tid];
 
 		MULT(vaux, lt, v0);
 
-		dir[tid * 3] = vaux[0] - origin[0];
-		dir[tid * 3 + 1] = vaux[1] - origin[1];
-		dir[tid * 3 + 2] = vaux[2] - origin[2];
+
+		dir[tid].x = vaux.x - (*origin).x;
+		dir[tid].y = vaux.y - (*origin).y;
+		dir[tid].z = vaux.z - (*origin).z;
 		
 		
 	}
@@ -129,28 +125,21 @@ __global__ void Intercept(const float * const p1, const float * const p2,
 
 	if(globalTid < sizeB){
 		
-
+		uint3 id = B[globalTid];
 		//Point 0
-		v0[0] = A[B[globalTid * 3] * 3];
-		v0[1] = A[B[globalTid * 3] * 3 + 1];
-		v0[2] = A[B[globalTid * 3] * 3 + 2];
+		v0 = A[id.x];
 
 		//Point 1
-		v1[0] = A[B[globalTid * 3 + 1] * 3];
-		v1[1] = A[B[globalTid * 3 + 1] * 3 + 1];
-		v1[2] = A[B[globalTid * 3 + 1] * 3 + 2];
+		v1 = A[id.y];
 
 		//Point 2
-		v2[0] = A[B[globalTid * 3 + 2] * 3];
-		v2[1] = A[B[globalTid * 3 + 2] * 3 + 1];
-		v2[2] = A[B[globalTid * 3 + 2] * 3 + 2];
-
+		v2 = A[id.z];
 
 		//First test. Ray-Triangle Intersection
 		unsigned int i;
 		for(i=0; i < sizeC && !*globalinter;++i)
 		{
-			inter = ray_triangle(v0, v1, v2, origin, &(dir[i * 3]));
+			inter = ray_triangle(v0, v1, v2, (*origin), dir[i]);
 			#ifdef ALLTEST
 				if(inter) *globalinter = false;
 			#else
@@ -163,19 +152,17 @@ __global__ void Intercept(const float * const p1, const float * const p2,
 }
 
 
-__global__ void SecondTest(	const float * const A, const unsigned int sizeA, bool * const globalinter)
+__global__ void SecondTest(	const float3 * const A, const unsigned int sizeA, bool * const globalinter)
 {
 	unsigned int globalTid = blockDim.x * blockIdx.x + threadIdx.x;
 
 	bool inter = false;
 
-	float v[3];
+	float3 v;
 	
 	if(globalTid < sizeA)
 	{
-		v[0] = A[globalTid * 3];
-		v[1] = A[globalTid * 3 + 1];
-		v[2] = A[globalTid * 3 + 2];
+		v = A[globalTid];
 
 		//Second Test
 		unsigned int j;
@@ -224,7 +211,7 @@ bool CUDA::CudaIntercept(float &time){
 	//First test with timer
 	GpuTimer timer;
 	timer.Start();
-	Intercept<<< GridDim, BlockDim, 100 * 3 * sizeof(float) + 3 * sizeof(float) + sizeof(bool) + 16 *sizeof(float) >>>(d_p1, d_p2, d_A, d_B, 100, sizeA, sizeB, d_x, d_inter);
+	Intercept<<< GridDim, BlockDim, 100 * sizeof(float3) + sizeof(float3) + sizeof(bool) + 16 *sizeof(float) >>>(d_p1, d_p2, d_A, d_B, 100, sizeA, sizeB, d_x, d_inter);
 	timer.Stop();
 
 	time += timer.Elapsed();
@@ -258,7 +245,7 @@ bool CUDA::CudaIntercept(float &time){
 }
 
 
-__host__ void CUDA::Init(float * A, unsigned int  * B, float *C, unsigned int sA, unsigned int sB, unsigned int sC){
+__host__ void CUDA::Init(float3 * A, uint3  * B, float3 *C, unsigned int sA, unsigned int sB, unsigned int sC){
 	float center[] = {0.0f,0.0f,0.0f};
 
 	sizeA = sA;
@@ -272,18 +259,18 @@ __host__ void CUDA::Init(float * A, unsigned int  * B, float *C, unsigned int sA
 
 	//Allocate memory on the GPU
 
-	checkCudaErrors(cudaMalloc((void**)&d_p1, 3 * sizeof(float)));
-	checkCudaErrors(cudaMalloc((void**)&d_p2, sizeC * 3 * sizeof(float)));
-	checkCudaErrors(cudaMalloc((void**)&d_A, sizeA * 3 * sizeof(float)));
-	checkCudaErrors(cudaMalloc((void**)&d_B, sizeB * 3 * sizeof(unsigned int)));
+	checkCudaErrors(cudaMalloc((void**)&d_p1, sizeof(float3)));
+	checkCudaErrors(cudaMalloc((void**)&d_p2, sizeC * sizeof(float3)));
+	checkCudaErrors(cudaMalloc((void**)&d_A, sizeA * sizeof(float3)));
+	checkCudaErrors(cudaMalloc((void**)&d_B, sizeB * sizeof(uint3)));
 	checkCudaErrors(cudaMalloc((void**)&d_x, 16 * sizeof(float)));
 	checkCudaErrors(cudaMalloc((void**)&d_inter, sizeof(bool)));
 	
 	//Send information to the GPU
-	checkCudaErrors(cudaMemcpy(d_p1, center, 3 * sizeof(float), cudaMemcpyHostToDevice));
-	checkCudaErrors(cudaMemcpy(d_p2, C, sizeC * 3 * sizeof(float), cudaMemcpyHostToDevice));
-	checkCudaErrors(cudaMemcpy(d_A, A, sizeA * 3 * sizeof(float), cudaMemcpyHostToDevice));
-	checkCudaErrors(cudaMemcpy(d_B, B, sizeB * 3 * sizeof(unsigned int), cudaMemcpyHostToDevice));
+	checkCudaErrors(cudaMemcpy(d_p1, center, sizeof(float3), cudaMemcpyHostToDevice));
+	checkCudaErrors(cudaMemcpy(d_p2, C, sizeC * sizeof(float3), cudaMemcpyHostToDevice));
+	checkCudaErrors(cudaMemcpy(d_A, A, sizeA * sizeof(float3), cudaMemcpyHostToDevice));
+	checkCudaErrors(cudaMemcpy(d_B, B, sizeB * sizeof(uint3), cudaMemcpyHostToDevice));
 
 }
 
