@@ -110,9 +110,18 @@ __global__ void Intercept(const float * const p1, const float * const p2,
 	//Copy all the data of C
 	if(tid < sizeC)
 	{
-		dir[tid * 3] = p2[tid * 3] - origin[0];
-		dir[tid * 3 + 1] = p2[tid * 3 + 1] - origin[1];
-		dir[tid * 3 + 2] = p2[tid * 3 + 2] - origin[2];
+		v0[0] = p2[tid * 3];
+		v0[1] = p2[tid * 3 + 1];
+		v0[2] = p2[tid * 3 + 2];
+
+
+		MULT(vaux, lt, v0);
+
+		dir[tid * 3] = vaux[0] - origin[0];
+		dir[tid * 3 + 1] = vaux[1] - origin[1];
+		dir[tid * 3 + 2] = vaux[2] - origin[2];
+		
+		
 	}
 	__syncthreads();
 
@@ -122,26 +131,20 @@ __global__ void Intercept(const float * const p1, const float * const p2,
 		
 
 		//Point 0
-		vaux[0] = A[B[globalTid * 3] * 3];
-		vaux[1] = A[B[globalTid * 3] * 3 + 1];
-		vaux[2] = A[B[globalTid * 3] * 3 + 2];
-
-		MULT(v0, lt, vaux);
+		v0[0] = A[B[globalTid * 3] * 3];
+		v0[1] = A[B[globalTid * 3] * 3 + 1];
+		v0[2] = A[B[globalTid * 3] * 3 + 2];
 
 		//Point 1
-		vaux[0] = A[B[globalTid * 3 + 1] * 3];
-		vaux[1] = A[B[globalTid * 3 + 1] * 3 + 1];
-		vaux[2] = A[B[globalTid * 3 + 1] * 3 + 2];
-
-		MULT(v1, lt, vaux);
+		v1[0] = A[B[globalTid * 3 + 1] * 3];
+		v1[1] = A[B[globalTid * 3 + 1] * 3 + 1];
+		v1[2] = A[B[globalTid * 3 + 1] * 3 + 2];
 
 		//Point 2
-		vaux[0] = A[B[globalTid * 3 + 2] * 3];
-		vaux[1] = A[B[globalTid * 3 + 2] * 3 + 1];
-		vaux[2] = A[B[globalTid * 3 + 2] * 3 + 2];
-	
-		MULT(v2, lt, vaux);
-		
+		v2[0] = A[B[globalTid * 3 + 2] * 3];
+		v2[1] = A[B[globalTid * 3 + 2] * 3 + 1];
+		v2[2] = A[B[globalTid * 3 + 2] * 3 + 2];
+
 
 		//First test. Ray-Triangle Intersection
 		unsigned int i;
@@ -192,6 +195,24 @@ __global__ void SecondTest(	const float * const A, const unsigned int sizeA, boo
 bool CUDA::CudaIntercept(float &time){
 	bool h_inter = false;
 
+	//Generate a random transform with scaling and translating
+	float transform[] = {	1.0f,0.0f,0.0f,0.0f,
+							0.0f,1.0f,0.0f,0.0f,
+							0.0f,0.0f,1.0f,0.0f,
+							0.0f,0.0f,0.0f,1.0f};
+	//Translate
+	transform[3] = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
+	transform[7] = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
+	transform[11] = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
+
+	//Scaling
+	transform[0] = 
+	transform[5] = 
+	transform[10] = (rand() % RAND_MAX) / float(RAND_MAX);
+
+	checkCudaErrors(cudaMemcpy(d_x, transform,  16 * sizeof(float), cudaMemcpyHostToDevice));
+	
+
 	checkCudaErrors(cudaMemcpy(d_inter, &h_inter,  sizeof(bool), cudaMemcpyHostToDevice));
 
 	//Each thread for each triangle
@@ -239,14 +260,13 @@ bool CUDA::CudaIntercept(float &time){
 
 __host__ void CUDA::Init(float * A, unsigned int  * B, float *C, unsigned int sA, unsigned int sB, unsigned int sC){
 	float center[] = {0.0f,0.0f,0.0f};
-	float transform[] = {	1.0f,0.0f,0.0f,0.0f,
-							0.0f,1.0f,0.0f,0.0f,
-							0.0f,0.0f,1.0f,0.0f,
-							0.0f,0.0f,0.0f,1.0f};
 
 	sizeA = sA;
 	sizeB = sB;
 	sizeC = sC;
+
+	/* initialize random seed: */
+	srand (time(NULL));
 
 	checkCudaErrors(cudaSetDevice(0));
 
@@ -264,8 +284,6 @@ __host__ void CUDA::Init(float * A, unsigned int  * B, float *C, unsigned int sA
 	checkCudaErrors(cudaMemcpy(d_p2, C, sizeC * 3 * sizeof(float), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_A, A, sizeA * 3 * sizeof(float), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_B, B, sizeB * 3 * sizeof(unsigned int), cudaMemcpyHostToDevice));
-	checkCudaErrors(cudaMemcpy(d_x, transform,  16 * sizeof(float), cudaMemcpyHostToDevice));
-	
 
 }
 
