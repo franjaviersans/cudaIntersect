@@ -1,212 +1,116 @@
+#define GLFW_DLL
+#include "GL/glew.h"
+#include "GLFW/glfw3.h"
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
+#include "glm/gtc/type_ptr.hpp"
+#include "GLSLProgram.h"
+#include "3DModel.h"
+#include "ArcBall.h"
 
+#include "CPUtimer.h"
+#include <stdlib.h>
+#include <string>
+#include <iostream>
+
+#define CUDA_CUDE
+#ifdef CUDA_CUDE
 #include "cuda.h"
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "device_functions.h"
 
 #include "kernel.cuh"
+#endif
 
-#include "rply.h"
-#include <stdlib.h>
-#include <string>
-#include <string.h>
-#include <stdio.h>
-#include <math.h>
-#include <iostream>
-#include <vector>
+#define BUFFER_OFFSET(i) ((char *)NULL + (i))
+
+#pragma comment(lib, "glfw3dll.lib")
+#pragma comment(lib, "opengl32.lib")
+#pragma comment(lib, "glew32.lib")
+#pragma comment(lib, "opengl32.lib")
 
 using namespace std;
-// use this namespace in this way:
-// if (Surface::loadFile(filename)){//code}
-// the vectors are vertex and faces
-namespace Surface
+
+///< Only wrapping the glfw functions
+namespace glfwFunc
 {
-	struct vert
-	{
-		float x;
-		float y;
-		float z;
-	};
-	struct face
-	{
-		unsigned int id0;
-		unsigned int id1;
-		unsigned int id2;
-	};
+	GLFWwindow* glfwWindow;
+	const unsigned int WINDOW_WIDTH = 1024;
+	const unsigned int WINDOW_HEIGHT = 650;
+	const float NCP = 0.01f;
+	const float FCP = 52.f;
+	const float fAngle = 45.f;
+	string strNameWindow = "Hello GLFW";
+	glm::vec4 m_vec4ColorAB;
+	glm::vec4 BLACK = glm::vec4(0, 0, 0, 1);
+	glm::vec4 m_vec4ColorC;
+	C3DModel m_model, m_cone;
+	CArcBall m_arcball;
+	bool m_bLeftButton;
+	bool m_bFlag;
+	glm::ivec2 m_MousePoint(0);
 
-	//only use this 2 vectors!
-	vector<vert> vertex;
-	vector<face> faces;
-	
-	//temp data to perform the algorithm
-	vert tempVertex;
-	face tempFace;
-	int iIndex = 0;
-	
-	//vertex callback
-	static int vertex_cb(p_ply_argument argument) {
-		long eol;
-		ply_get_argument_user_data(argument, NULL, &eol);
-		switch (iIndex)
+	CGLSLProgram m_program;
+	glm::mat4x4 mProjMatrix, mModelViewMatrix;
+
+	///
+	/// Init all data and variables.
+	/// @return true if everything is ok, false otherwise
+	///
+	bool initialize()
+	{
+		glEnable(GL_DEPTH_TEST);
+		glEnable(GL_CULL_FACE);
+		glPolygonOffset(1, 1);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glewExperimental = GL_TRUE;
+		m_bLeftButton = m_bFlag = false;
+		if (glewInit() != GLEW_OK)
 		{
-		case 0:
-			Surface::tempVertex.x = float(ply_get_argument_value(argument));
-			iIndex++;
-			break;
-		case 1:
-			Surface::tempVertex.y = float(ply_get_argument_value(argument));
-			iIndex++;
-			break;
-		case 2:
-			Surface::tempVertex.z = float(ply_get_argument_value(argument));
-			Surface::vertex.push_back(Surface::tempVertex);
-			iIndex = 0;
-			break;
+			cout << "- glew Init failed :(" << endl;
+			return false;
 		}
-		return 1;
-	}
-
-	//face callback
-	static int face_cb(p_ply_argument argument) {
-		long length, value_index;
-		ply_get_argument_property(argument, NULL, &length, &value_index);
-		switch (value_index) {
-		case 0:
-			tempFace.id0 = (int)ply_get_argument_value(argument);
-			break;
-		case 1:
-			tempFace.id1 = (int)ply_get_argument_value(argument);
-			break;
-		case 2:
-			tempFace.id2 = (int)ply_get_argument_value(argument);
-			faces.push_back(tempFace);
-			break;
-		default:
-			break;
-		}
-		return 1;
-	}
-
-	//just call this function
-	bool loadFile(string filename)
-	{
-		long nvertices, ntriangles;
-		p_ply ply = ply_open(filename.c_str(), NULL, 0, NULL);
-		if (!ply) return false;
-		if (!ply_read_header(ply)) return false;
-		nvertices= ply_set_read_cb(ply, "vertex", "x", vertex_cb, NULL, 0);
-		ply_set_read_cb(ply, "vertex", "y", vertex_cb, NULL, 0);
-		ply_set_read_cb(ply, "vertex", "z", vertex_cb, NULL, 1);
-		ntriangles = ply_set_read_cb(ply, "face", "vertex_indices", face_cb, NULL, 0);
-		//printf("%ld\n%ld\n", nvertices, ntriangles);
-		if (!ply_read(ply)) return false;
-		ply_close(ply);
-		return true;
-	}
-}
-
-namespace Sphere
-{
-	struct vert
-	{
-		float x;
-		float y;
-		float z;
-	};
-	struct face
-	{
-		unsigned int id0;
-		unsigned int id1;
-		unsigned int id2;
-	};
-
-	//only use this 2 vectors!
-	vector<vert> vertex;
-	vector<face> faces;
-	
-	//temp data to perform the algorithm
-	vert tempVertex;
-	face tempFace;
-	int iIndex = 0;
-	
-	//vertex callback
-	static int vertex_cb(p_ply_argument argument) {
-		long eol;
-		ply_get_argument_user_data(argument, NULL, &eol);
-		switch (iIndex)
-		{
-		case 0:
-			tempVertex.x = float(ply_get_argument_value(argument));
-			iIndex++;
-			break;
-		case 1:
-			tempVertex.y = float(ply_get_argument_value(argument));
-			iIndex++;
-			break;
-		case 2:
-			tempVertex.z = float(ply_get_argument_value(argument));
-			vertex.push_back(tempVertex);
-			iIndex = 0;
-			break;
-		}
-		return 1;
-	}
-
-	//face callback
-	static int face_cb(p_ply_argument argument) {
-		long length, value_index;
-		ply_get_argument_property(argument, NULL, &length, &value_index);
-		switch (value_index) {
-		case 0:
-			tempFace.id0 = (int)ply_get_argument_value(argument);
-			break;
-		case 1:
-			tempFace.id1 = (int)ply_get_argument_value(argument);
-			break;
-		case 2:
-			tempFace.id2 = (int)ply_get_argument_value(argument);
-			faces.push_back(tempFace);
-			break;
-		default:
-			break;
-		}
-		return 1;
-	}
-
-	//just call this function
-	bool loadFile(string filename)
-	{
-		long nvertices, ntriangles;
-		p_ply ply = ply_open(filename.c_str(), NULL, 0, NULL);
-		if (!ply) return false;
-		if (!ply_read_header(ply)) return false;
-		nvertices= ply_set_read_cb(ply, "vertex", "x", vertex_cb, NULL, 0);
-		ply_set_read_cb(ply, "vertex", "y", vertex_cb, NULL, 0);
-		ply_set_read_cb(ply, "vertex", "z", vertex_cb, NULL, 1);
-		ntriangles = ply_set_read_cb(ply, "face", "vertex_indices", face_cb, NULL, 0);
-		//printf("%ld\n%ld\n", nvertices, ntriangles);
-		if (!ply_read(ply)) return false;
-		ply_close(ply);
-		return true;
-	}
-}
-int main(){
-	float total_time = 0;
+		std::cout << "OpenGL version: " << glGetString(GL_VERSION) << std::endl;
+		std::cout << "GLSL version: " << glGetString(GL_SHADING_LANGUAGE_VERSION) << std::endl;
+		std::cout << "Vendor: " << glGetString(GL_VENDOR) << std::endl;
+		std::cout << "Renderer: " << glGetString(GL_RENDERER) << std::endl;
+		//load the shaders
+		m_program.loadShader("shaders/basic.vert", CGLSLProgram::VERTEX);
+		m_program.loadShader("shaders/basic.frag", CGLSLProgram::FRAGMENT);
+		m_program.create_link();
+		m_program.enable();
+		m_program.addAttribute("vVertex");
+		m_program.addUniform("mProjection");
+		m_program.addUniform("mModelView");
+		m_program.addUniform("vec4Color");
+		m_program.disable();
+		m_model.load("geometry/surfaceAB.ply");
+		m_cone.load("geometry/surfaceC.ply");
+		m_vec4ColorAB = glm::vec4(1, 1, 1 , 0.3);
+		m_vec4ColorC = glm::vec4(0.1, 0.01, 0.6, 1.0);
 
 
-	if (!Surface::loadFile("surfaceAB.ply"))
-		cout << "not loaded" << endl;
-	else{
-		if (!Sphere::loadFile("sphere.ply"))
-			cout << "not loaded" << endl;
-		else{
+		float total_time = 0;
+
+		
+		CPUTimer timer;
+
+		#ifdef CUDA_CUDE
+			timer.StartCounter();
+
 			CUDA c;
-			c.Init((float3 *)(Surface::vertex.data()), 
-									(uint3* )(Surface::faces.data()), 
-									(float3 *)(Sphere::vertex.data()),
-									Surface::vertex.size(), 
-									Surface::faces.size(),
-									Sphere::vertex.size());
+			c.Init((float3 *)((m_model.GetPointerData())->data()), 
+									(uint3* )((m_model.GetPointerMesh())->data()), 
+									(float3 *)((m_cone.GetPointerData())->data()),
+									(m_model.GetPointerData())->size(), 
+									(m_model.GetPointerMesh())->size(),
+									(m_cone.GetPointerData())->size());
+
+
+			cout<<(m_model.GetPointerData())->size()<<"   "<<(m_model.GetPointerMesh())->size()<<endl;
+			cout<<(m_cone.GetPointerData())->size()<<"   "<<(m_cone.GetPointerMesh())->size()<<endl;
 			for(int i = 0;i < M;++i){
 				c.CudaIntercept(total_time);
 			}
@@ -215,9 +119,152 @@ int main(){
 			printf("Average: %f msecs.\n", total_time / 2000);
 
 			c.Destroy();
+		#endif
+
+
+		cout << "Tiempo: "<< timer.GetCounter() <<" microseconds\n";
+		return true;
+	}
+
+	///< Callback function used by GLFW to capture some possible error.
+	void errorCB(int error, const char* description)
+	{
+		cout << description << endl;
+	}
+
+	void onMouseMove(GLFWwindow *window, double xpos, double ypos)
+	{
+		if (m_bLeftButton)
+		{
+			if (!m_bFlag)
+			{
+				m_bFlag = true;
+				m_arcball.OnMouseDown(glm::ivec2(xpos, ypos));
+			}
+			else
+			{
+				m_MousePoint.x = int(xpos);
+				m_MousePoint.y = int(ypos);
+				m_arcball.OnMouseMove(m_MousePoint, ROTATE);
+			}
 		}
 	}
 
+	void onMouseDown(GLFWwindow* window, int button, int action, int mods)
+	{
+		if (action == GLFW_PRESS)
+		{
+			if (button == GLFW_MOUSE_BUTTON_LEFT)
+			{
+				m_bLeftButton = true;
+			}
+		}
+		else if (action == GLFW_RELEASE)
+		{
+			if (button == GLFW_MOUSE_BUTTON_LEFT)
+			{
+				m_bLeftButton = false;
+				m_bFlag = false;
+				m_arcball.OnMouseUp(m_MousePoint);
+			}
+		}
+	}
 
-	return 0;
+	///
+	/// The keyboard function call back
+	/// @param window id of the window that received the event
+	/// @param iKey the key pressed or released
+	/// @param iScancode the system-specific scancode of the key.
+	/// @param iAction can be GLFW_PRESS, GLFW_RELEASE or GLFW_REPEAT
+	/// @param iMods Bit field describing which modifier keys were held down (Shift, Alt, & so on)
+	///
+	void keyboardCB(GLFWwindow* window, int iKey, int iScancode, int iAction, int iMods)
+	{
+		if (iAction == GLFW_PRESS)
+		{
+			switch (iKey)
+			{
+			case GLFW_KEY_ESCAPE:
+			case GLFW_KEY_Q:
+				glfwSetWindowShouldClose(window, GL_TRUE);
+				break;
+			}
+		}
+	}
+
+	///< The resizing function
+	void resizeCB(GLFWwindow* window, int iWidth, int iHeight)
+	{
+		if (iHeight == 0) iHeight = 1;
+		float ratio = iWidth / float(iHeight);
+		glViewport(0, 0, iWidth, iHeight);
+		mProjMatrix = glm::perspective(fAngle, ratio, NCP, FCP);
+		m_arcball.Resize(float(iWidth), float(iHeight));
+	}
+
+	///< The main rendering function.
+	void draw()
+	{
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		//glClearColor(0.94f, 0.94f, 0.94f, 0.f);
+		glClearColor(0.54f, 0.54f, 0.54f, 0.f);
+		mModelViewMatrix = glm::translate(glm::mat4(), glm::vec3(0, 0, -6.f)) * m_arcball.GetTransformation();
+		m_program.enable();
+			glUniformMatrix4fv(m_program.getLocation("mModelView"), 1, GL_FALSE, glm::value_ptr(mModelViewMatrix));
+			glUniformMatrix4fv(m_program.getLocation("mProjection"), 1, GL_FALSE, glm::value_ptr(mProjMatrix));
+			mModelViewMatrix = glm::translate(glm::mat4(), glm::vec3(0, 0, -6.f)) * glm::scale(glm::mat4(), glm::vec3(0.6, 0.6, 0.6)) * m_arcball.GetTransformation();
+			glUniformMatrix4fv(m_program.getLocation("mModelView"), 1, GL_FALSE, glm::value_ptr(mModelViewMatrix));
+
+			glUniform4fv(m_program.getLocation("vec4Color"), 1, glm::value_ptr(m_vec4ColorC));
+			m_cone.drawObject();
+			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+			glPolygonOffset(1, 1);
+			glLineWidth(2.0f);
+			glUniform4fv(m_program.getLocation("vec4Color"), 1, glm::value_ptr(BLACK));
+			m_cone.drawObject();
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+			glLineWidth(1.0);
+			glUniform4fv(m_program.getLocation("vec4Color"), 1, glm::value_ptr(m_vec4ColorAB));
+			m_model.drawObject();
+			
+		m_program.disable();
+
+		glfwSwapBuffers(glfwFunc::glfwWindow);
+	}
+
+	/// Here all data must be destroyed + glfwTerminate
+	void destroy()
+	{
+		m_model.deleteBuffers();
+		m_cone.deleteBuffers();
+		glfwDestroyWindow(glfwFunc::glfwWindow);
+		glfwTerminate();
+	}
+};
+
+int main(int argc, char** argv)
+{
+	glfwSetErrorCallback(glfwFunc::errorCB);
+	if (!glfwInit())	exit(EXIT_FAILURE);
+	glfwFunc::glfwWindow = glfwCreateWindow(glfwFunc::WINDOW_WIDTH, glfwFunc::WINDOW_HEIGHT, glfwFunc::strNameWindow.c_str(), NULL, NULL);
+	if (!glfwFunc::glfwWindow)
+	{
+		glfwTerminate();
+		exit(EXIT_FAILURE);
+	}
+	glfwMakeContextCurrent(glfwFunc::glfwWindow);
+	if (!glfwFunc::initialize()) exit(EXIT_FAILURE);
+	glfwFunc::resizeCB(glfwFunc::glfwWindow, glfwFunc::WINDOW_WIDTH, glfwFunc::WINDOW_HEIGHT);	//just the 1st time
+	glfwSetKeyCallback(glfwFunc::glfwWindow, glfwFunc::keyboardCB);
+	glfwSetWindowSizeCallback(glfwFunc::glfwWindow, glfwFunc::resizeCB);
+	glfwSetMouseButtonCallback(glfwFunc::glfwWindow, glfwFunc::onMouseDown);
+	glfwSetCursorPosCallback(glfwFunc::glfwWindow, glfwFunc::onMouseMove);
+	// main loop!
+	while (!glfwWindowShouldClose(glfwFunc::glfwWindow))
+	{
+		glfwFunc::draw();
+		glfwPollEvents();	//or glfwWaitEvents()
+	}
+	glfwFunc::destroy();
+	return EXIT_SUCCESS;
 }

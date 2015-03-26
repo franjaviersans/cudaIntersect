@@ -246,6 +246,7 @@ bool CUDA::CudaIntercept(float &time){
 
 
 __host__ void CUDA::Init(float3 * A, uint3  * B, float3 *C, unsigned int sA, unsigned int sB, unsigned int sC){
+
 	float center[] = {0.0f,0.0f,0.0f};
 
 	sizeA = sA;
@@ -271,7 +272,6 @@ __host__ void CUDA::Init(float3 * A, uint3  * B, float3 *C, unsigned int sA, uns
 	checkCudaErrors(cudaMemcpy(d_p2, C, sizeC * sizeof(float3), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_A, A, sizeA * sizeof(float3), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_B, B, sizeB * sizeof(uint3), cudaMemcpyHostToDevice));
-
 }
 
 __host__ void CUDA::Destroy(){

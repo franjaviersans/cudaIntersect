@@ -158,12 +158,24 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <CudaCompile Include="kernel.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="3DModel.h" />
+    <ClInclude Include="ArcBall.h" />
+    <ClInclude Include="ArcBallMatrix.h" />
+    <ClInclude Include="BoundingBox.h" />
+    <ClInclude Include="CPUtimer.h" />
+    <ClInclude Include="GLSLProgram.h" />
     <ClInclude Include="kernel.cuh" />
+    <ClInclude Include="OGLBasic.h" />
     <ClInclude Include="rply.h" />
     <ClInclude Include="timer.h" />
     <ClInclude Include="utils.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="3DModel.cpp" />
+    <ClCompile Include="ArcBall.cpp" />
+    <ClCompile Include="ArcBallMatrix.cpp" />
+    <ClCompile Include="BoundingBox.cpp" />
+    <ClCompile Include="GLSLProgram.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="rply.c" />
   </ItemGroup>

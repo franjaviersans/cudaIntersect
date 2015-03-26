@@ -15,10 +15,10 @@
 
 //#define ALLFALSE
 //#define ALLTRUE
-//#define ALLTEST
+#define ALLTEST
 
 
-#define M 2000
+#define M 200
 #define N 1500
 
 #define EPSILON 0.000001
