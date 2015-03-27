@@ -1,6 +1,7 @@
-#pragma once
+#ifndef GLSLPROGRAM
+#define GLSLPROGRAM
 
-#include "GL/glew.h"
+#include "include/GL/glew.h"
 #include <string>
 #include <map>
 #include <vector>
@@ -40,3 +41,5 @@ private:
 	bool loadShaderFile(std::string strFilename, GLuint iHandle);
 	void checkLinkingErrors();
 };
+
+#endif
