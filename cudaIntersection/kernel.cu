@@ -179,23 +179,39 @@ __global__ void SecondTest(	const float3 * const A, const unsigned int sizeA, bo
 	}
 }
 
-bool CUDA::CudaIntercept(float &time){
+bool CUDA::CudaIntercept(float &time, vector<Transformation> *vTrans){
 	bool h_inter = false;
+
+	Transformation t;
 
 	//Generate a random transform with scaling and translating
 	float transform[] = {	1.0f,0.0f,0.0f,0.0f,
 							0.0f,1.0f,0.0f,0.0f,
 							0.0f,0.0f,1.0f,0.0f,
 							0.0f,0.0f,0.0f,1.0f};
+
+	t.m_fScalar = (rand() % RAND_MAX) / float(RAND_MAX);
+	t.m_fTranslationx = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
+	t.m_fTranslationy = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
+	t.m_fTranslationz = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
+
+	t.m_fRotationAngle = 0.0f;
+	t.m_fRotationVectorx = 0.0f;
+	t.m_fRotationVectorx = 0.0f;
+	t.m_fRotationVectorx = 1.0f;
+
 	//Translate
-	transform[3] = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
-	transform[7] = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
-	transform[11] = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
+	transform[3] = t.m_fTranslationx;
+	transform[7] = t.m_fTranslationy;
+	transform[11] = t.m_fTranslationz;
 
 	//Scaling
 	transform[0] = 
 	transform[5] = 
-	transform[10] = (rand() % RAND_MAX) / float(RAND_MAX);
+	transform[10] = t.m_fScalar;
+
+	
+	vTrans->push_back(t);
 
 	checkCudaErrors(cudaMemcpy(d_x, transform,  16 * sizeof(float), cudaMemcpyHostToDevice));
 	

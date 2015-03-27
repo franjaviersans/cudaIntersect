@@ -8,18 +8,20 @@
 
 #include "utils.h"
 #include "timer.h"
+#include "Transformation.h"
 
+#include <vector>
 #include <stdio.h>
 
-
+using std::vector;
 
 //#define ALLFALSE
 //#define ALLTRUE
 #define ALLTEST
 
 
-#define M 200
-#define N 1500
+#define M 2000
+#define N 800
 
 #define EPSILON 0.000001
 #define CROSS(dest, v1, v2) \
@@ -49,7 +51,7 @@ int sizeA, sizeB, sizeC;
 public:
 __host__ void Init(float3 * A, uint3 * B, float3 * C, unsigned int sA, unsigned int sB, unsigned int sC);
 __host__ void Destroy();
-__host__ bool CudaIntercept(float &time);
+__host__ bool CudaIntercept(float &time, vector<Transformation> *);
 };
 
 

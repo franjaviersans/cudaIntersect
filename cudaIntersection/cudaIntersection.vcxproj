@@ -168,6 +168,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClInclude Include="OGLBasic.h" />
     <ClInclude Include="rply.h" />
     <ClInclude Include="timer.h" />
+    <ClInclude Include="Transformation.h" />
     <ClInclude Include="utils.h" />
   </ItemGroup>
   <ItemGroup>

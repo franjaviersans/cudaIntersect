@@ -12,11 +12,13 @@
 #include "include/glm/gtc/type_ptr.hpp"
 #include "include/AntTweakBar/AntTweakBar.h"
 #include "GLSLProgram.h"
+#include "Transformation.h"
 #include "3DModel.h"
 #include "ArcBall.h"
 #include <stdlib.h>
 #include <string>
 #include <iostream>
+#include <vector>
 
 #define CUDA_CUDE
 #ifdef CUDA_CUDE
@@ -49,9 +51,11 @@ namespace glfwFunc
 	bool m_bLeftButton;
 	bool m_bFlag;
 	glm::ivec2 m_MousePoint(0);
+	vector<Transformation> m_vTransformation;
+
 
 	CGLSLProgram m_program;
-	glm::mat4x4 mProjMatrix, mModelViewMatrix;
+	glm::mat4x4 mProjMatrix, mModelViewMatrix, mCTransfor;
 
 
 	void TW_CALL pressExit(void *clientData)
@@ -216,7 +220,71 @@ namespace glfwFunc
 		TwWindowSize(WINDOW_WIDTH, WINDOW_HEIGHT);
 
 
+
+
+
+
+		float total_time = 0;
+
 		
+		
+		#ifdef CUDA_CUDE
+			//A timer to know how much the CPU is
+			CPUTimer timer;
+
+			//Start CPU timer
+			timer.StartCounter();
+
+			//Create a class with the CUDA wraper
+			CUDA c;
+
+			//Pass the data
+			c.Init((float3 *)((m_model.GetPointerData())->data()), 
+									(uint3* )((m_model.GetPointerMesh())->data()), 
+									(float3 *)((m_cone.GetPointerData())->data()),
+									(m_model.GetPointerData())->size(), 
+									(m_model.GetPointerMesh())->size(),
+									(m_cone.GetPointerData())->size());
+
+			int t;
+			bool finish = false;
+
+			//Do M iterations to test the data
+			for(t = 0;t < M && !finish;++t)
+			{
+				finish = c.CudaIntercept(total_time, &m_vTransformation);
+			}
+
+			//Print the total GPUtime of execution
+			printf("Total time: %f msecs.\n", total_time);
+
+			//Print the average GPU time per iteration
+			printf("Average: %f msecs.\n", total_time / t);
+
+			c.Destroy();
+
+			//Total execution time
+			cout << "Tiempo: "<< timer.GetCounter() <<" microseconds\n";
+		#endif
+
+
+		//Declare the bar
+		TwBar *myBar;
+		myBar = TwNewBar("Opciones");
+
+		//Set a new variable for the iterations
+		TwAddVarCB(myBar,"Iteracion",TW_TYPE_UINT32, SetVarCallback, GetVarCallback, &iteration, "label='Iteracion' group=Opciones");
+
+		//Define a exit button
+		TwAddButton(myBar,"Salir", pressExit,NULL,"label='Salir' group=Archivo");
+
+		//Ser the min and the max in the range of the iteration number
+		iteration = 0;
+		TwSetParam(myBar, "Iteracion", "min", TW_PARAM_INT32, 1, &iteration);
+		iteration = m_vTransformation.size();
+		TwSetParam(myBar, "Iteracion", "max", TW_PARAM_INT32, 1, &iteration);
+		
+		//Set the callbacks!!!
 		glfwSetKeyCallback(glfwFunc::glfwWindow, glfwFunc::keyboardCB);
 		glfwSetWindowSizeCallback(glfwFunc::glfwWindow, glfwFunc::resizeCB);
 		glfwSetMouseButtonCallback(glfwFunc::glfwWindow, glfwFunc::onMouseDown);
@@ -225,50 +293,6 @@ namespace glfwFunc
 		glfwSetCharCallback(glfwWindow, (GLFWcharfun)TwEventCharGLFW3);
 
 
-
-
-
-		TwBar *myBar;
-		myBar = TwNewBar("Opciones");
-
-		//Definicion de un boton para cambiar un color utilizando callbacks
-		TwAddVarCB(myBar,"Color",TW_TYPE_UINT32, SetVarCallback, GetVarCallback, &iteration, "label='Color Triangulo' group=Triangulo");
-
-		//Definicion de un boton para cambiar un color sin utilizar callbacks
-		TwAddButton(myBar,"Salir", pressExit,NULL,"label='Salir' group=Archivo");
-
-
-		float total_time = 0;
-
-		
-		CPUTimer timer;
-
-		#ifdef CUDA_CUDE
-			timer.StartCounter();
-
-			CUDA c;
-			c.Init((float3 *)((m_model.GetPointerData())->data()), 
-									(uint3* )((m_model.GetPointerMesh())->data()), 
-									(float3 *)((m_cone.GetPointerData())->data()),
-									(m_model.GetPointerData())->size(), 
-									(m_model.GetPointerMesh())->size(),
-									(m_cone.GetPointerData())->size());
-
-
-			cout<<(m_model.GetPointerData())->size()<<"   "<<(m_model.GetPointerMesh())->size()<<endl;
-			cout<<(m_cone.GetPointerData())->size()<<"   "<<(m_cone.GetPointerMesh())->size()<<endl;
-			for(int i = 0;i < M;++i){
-				c.CudaIntercept(total_time);
-			}
-
-			printf("Total time: %f msecs.\n", total_time);
-			printf("Average: %f msecs.\n", total_time / 2000);
-
-			c.Destroy();
-		#endif
-
-
-		cout << "Tiempo: "<< timer.GetCounter() <<" microseconds\n";
 		return true;
 	}
 
@@ -279,11 +303,28 @@ namespace glfwFunc
 		//glClearColor(0.94f, 0.94f, 0.94f, 0.f);
 		glClearColor(0.54f, 0.54f, 0.54f, 0.f);
 		mModelViewMatrix = glm::translate(glm::mat4(), glm::vec3(0, 0, -6.f)) * m_arcball.GetTransformation();
+
+		mCTransfor = glm::mat4();
+
+		if(m_vTransformation.size() != 0 && iteration != 0 && iteration <= m_vTransformation .size())
+		{
+			
+			mCTransfor = glm::scale(glm::mat4(), glm::vec3(m_vTransformation[iteration - 1].m_fScalar)) * mCTransfor;
+
+			mCTransfor = glm::rotate(glm::mat4(), m_vTransformation[iteration - 1].m_fRotationAngle, 
+				glm::vec3( m_vTransformation[iteration - 1].m_fRotationVectorx, 
+				m_vTransformation[iteration - 1].m_fRotationVectory, 
+				m_vTransformation[iteration - 1].m_fRotationVectorz)) * mCTransfor;
+
+			mCTransfor = glm::translate(glm::mat4(), glm::vec3( m_vTransformation[iteration - 1].m_fTranslationx, 
+									m_vTransformation[iteration - 1].m_fTranslationy, 
+									m_vTransformation[iteration - 1].m_fTranslationz)) * mCTransfor;
+		}
+		
 		m_program.enable();
-			glUniformMatrix4fv(m_program.getLocation("mModelView"), 1, GL_FALSE, glm::value_ptr(mModelViewMatrix));
 			glUniformMatrix4fv(m_program.getLocation("mProjection"), 1, GL_FALSE, glm::value_ptr(mProjMatrix));
 			mModelViewMatrix = glm::translate(glm::mat4(), glm::vec3(0, 0, -6.f)) * glm::scale(glm::mat4(), glm::vec3(0.6, 0.6, 0.6)) * m_arcball.GetTransformation();
-			glUniformMatrix4fv(m_program.getLocation("mModelView"), 1, GL_FALSE, glm::value_ptr(mModelViewMatrix));
+			glUniformMatrix4fv(m_program.getLocation("mModelView"), 1, GL_FALSE, glm::value_ptr(mModelViewMatrix * mCTransfor));
 
 			glUniform4fv(m_program.getLocation("vec4Color"), 1, glm::value_ptr(m_vec4ColorC));
 			m_cone.drawObject();
@@ -292,6 +333,7 @@ namespace glfwFunc
 			glLineWidth(2.0f);
 			glUniform4fv(m_program.getLocation("vec4Color"), 1, glm::value_ptr(BLACK));
 			m_cone.drawObject();
+			glUniformMatrix4fv(m_program.getLocation("mModelView"), 1, GL_FALSE, glm::value_ptr(mModelViewMatrix));
 			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 			glLineWidth(1.0);
 			glUniform4fv(m_program.getLocation("vec4Color"), 1, glm::value_ptr(m_vec4ColorAB));
