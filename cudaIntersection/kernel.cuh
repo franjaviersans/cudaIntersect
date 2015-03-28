@@ -1,18 +1,10 @@
 #ifndef __CUDACODE__  
 #define __CUDACODE__
 
-#include "cuda.h"
-#include "cuda_runtime.h"
-#include "device_launch_parameters.h"
-#include "device_functions.h"
-
+#include "Definitions.h"
 #include "utils.h"
 #include "timer.h"
 #include "Transformation.h"
-
-#include "include/glm/glm.hpp"
-#include "include/glm/gtc/matrix_transform.hpp"
-#include "include/glm/gtc/type_ptr.hpp"
 
 #include <vector>
 #include <stdio.h>
@@ -23,7 +15,7 @@ using std::vector;
 
 //#define ALLFALSE
 //#define ALLTRUE
-#define ALLTEST
+//#define ALLTEST
 
 
 #define M 2000

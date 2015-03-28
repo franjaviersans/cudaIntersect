@@ -1,11 +1,10 @@
 #ifndef UTILS_H__
 #define UTILS_H__
 
+#include "Definitions.h"
+
 #include <iostream>
 #include <iomanip>
-#include <cuda.h>
-#include <cuda_runtime.h>
-#include <cuda_runtime_api.h>
 #include <cassert>
 #include <cmath>
 

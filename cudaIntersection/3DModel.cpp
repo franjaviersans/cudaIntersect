@@ -1,8 +1,7 @@
 #include "include/GL/glew.h"
 #include "3DModel.h"
 #include <iostream>
-#include "include/glm/gtc/type_ptr.hpp"
-#include "include/glm/gtc/matrix_transform.hpp"
+#include "Definitions.h"
 #include "OGLBasic.h"
 
 //#define BUFFER_OFFSET(i) ((char *)NULL + (i))

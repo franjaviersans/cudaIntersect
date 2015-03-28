@@ -1,7 +1,7 @@
 #ifndef ARC_BALL
 #define ARC_BALL
 
-#include "include/glm/glm.hpp"
+#include "Definitions.h"
 #include "ArcBallMatrix.h"
 #include "OGLBasic.h"
 

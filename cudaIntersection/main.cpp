@@ -6,13 +6,7 @@
 
 
 #include "CPUtimer.h"
-
-#define GLM_FORCE_CUDA
-
-#define CUDA_CUDE
-#ifdef CUDA_CUDE
-#include "kernel.cuh"
-#endif
+#include "Definitions.h"
 
 #define GLFW_DLL
 #include "include/GL/glew.h"
@@ -83,7 +77,22 @@ namespace glfwFunc
 	void TW_CALL SetVarCallback(const void *value, void *clientData)
 	{
 		iteration = ((const int *)value)[0]; 
-		m_trans = m_vTransformation[iteration - 1];
+		if(iteration != 0)
+		{
+			m_trans = m_vTransformation[iteration - 1];
+		}
+		else
+		{
+			m_trans.m_fRotationAngle = 0.0f;
+			m_trans.m_fRotationVectorx = 0.0f;
+			m_trans.m_fRotationVectory = 0.0f;
+			m_trans.m_fRotationVectorz = 0.0f;
+			m_trans.m_fScalar = 0.0f;
+			m_trans.m_fTranslationx = 0.0f;
+			m_trans.m_fTranslationy = 0.0f;
+			m_trans.m_fTranslationz = 0.0f;
+
+		}
 	}
 
 	void TW_CALL GetVarCallback(void *value, void *clientData)
@@ -255,10 +264,10 @@ namespace glfwFunc
 									(m_cone.GetPointerData())->size());
 
 			int t;
-			bool finish = false;
+			bool finish = true;
 
 			//Do M iterations to test the data
-			for(t = 0;t < M && !finish;++t)
+			for(t = 0;t < M && finish;++t)
 			{
 				finish = c.CudaIntercept(total_time, &m_vTransformation);
 			}

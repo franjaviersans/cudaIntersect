@@ -1,7 +1,8 @@
 #ifndef ARC_BALL_MATRIX
 #define ARC_BALL_MATRIX
 
-#include "include/glm/glm.hpp"
+#include "Definitions.h"
+
 class CArcBallMatrix
 {
 private:

@@ -1,5 +1,7 @@
 #include "kernel.cuh"
 
+
+//Ray-Triangle function to calculate the intersection
 __device__ bool ray_triangle( const float3 V1,  // Triangle vertices
                            const float3 V2,
                            const float3 V3,
@@ -51,15 +53,16 @@ __device__ bool ray_triangle( const float3 V1,  // Triangle vertices
 	t = DOT(e2, Q) * inv_det;
  
 	if(t > EPSILON && t < 1.0f) { //ray intersection
-	return true;
+		//We only consider the [0.0,1.0] interval because is the distance between the origin and the point in the surface C
+		return true;
 	}
  
 	// No hit, no win
 	return false;
-	
 }
 
-
+//A simple geometry test to be done in the points of A
+//For now this is only a dommy test
 __device__ bool Test2(float3 v, unsigned int i){
 
 	#ifdef ALLFALSE
@@ -70,8 +73,8 @@ __device__ bool Test2(float3 v, unsigned int i){
 		return true;
 	#endif
 
-	return v.x * v.x + v.y * v.y < v.z * v.z + i * i;
-
+	//return v.x * v.x + v.y * v.y < v.z * v.z + i * i;
+	return false;
 }
 
 __global__ void Intercept(const float3 * const p1, const float3 * const p2,
@@ -85,75 +88,77 @@ __global__ void Intercept(const float3 * const p1, const float3 * const p2,
 	//Shared memory declaration
 	extern __shared__ char buffer[];
 
+	//All point of C will be stored in the array dir in shared memory
 	float3 * dir = (float3 *)&buffer[0];
-    float3 * origin = (float3 *)&buffer[sizeC * sizeof(float3)];
-	float * lt = (float *)&buffer[sizeC * sizeof(float3) + sizeof(float3)];
-	bool * sharedinter = (bool *)&buffer[sizeC * sizeof(float3) + sizeof(float3) + 16 *sizeof(float)];
+    float3 * origin = (float3 *)&buffer[sizeC * sizeof(float3)]; //The origin will be shared to
+	float * lt = (float *)&buffer[sizeC * sizeof(float3) + sizeof(float3)]; //The shared transformation matrix
+	bool * sharedinter = (bool *)&buffer[sizeC * sizeof(float3) + sizeof(float3) + 16 *sizeof(float)]; //A boolean to know if the test has to stop
 
+	//Id of the thread within a block and within the grid
 	unsigned int tid = threadIdx.x;
 	unsigned int globalTid = blockDim.x * blockIdx.x + threadIdx.x;
+
+	//Auxiliar variables
 	float3 v0, v1, v2, vaux;
 	bool inter = false;
 	
-	
+	//if it is the first thread of the block
 	if(tid == 0)
 	{
+		//Set global boolean to false (there has been no ray-triangle intersection
 		*sharedinter = false;
-		vaux = *p1;
-		MULT((*origin), lt, vaux);
+		vaux = *p1; //Copy the data of the origin of the ray
+		MULT((*origin), x, vaux); //Transfor the point. This is the only transformation done with global transformation data!!!
 	}
-	if(tid < 16) lt[tid] = x[tid];
-	__syncthreads();
+	if(tid < 16) lt[tid] = x[tid]; //16 values of the 4x4 transformation matrix
+	__syncthreads(); //Wait to all the threads in the block
 
 	//Copy all the data of C
 	if(tid < sizeC)
 	{
+		//Copy a point of C to local data
 		v0 = p2[tid];
 
+		//Transform the point 
 		MULT(vaux, lt, v0);
 
-
+		//store the direction of the ray in shared memory x(p2) - x(p1)
 		dir[tid].x = vaux.x - (*origin).x;
 		dir[tid].y = vaux.y - (*origin).y;
 		dir[tid].z = vaux.z - (*origin).z;
-		
-		
 	}
-	__syncthreads();
+	__syncthreads(); //Wait to all the threads in the block
 
 	
-
+	//Each thread works with one triangle in the surface (A, B)
 	if(globalTid < sizeB){
-		
 		uint3 id = B[globalTid];
-		//Point 0
-		v0 = A[id.x];
 
-		//Point 1
-		v1 = A[id.y];
-
-		//Point 2
-		v2 = A[id.z];
+		//Store the points of the triangles in local memory
+		v0 = A[id.x]; //Point 0
+		v1 = A[id.y]; //Point 1
+		v2 = A[id.z]; //Point 2
 
 		//First test. Ray-Triangle Intersection
 		unsigned int i;
-		for(i=0; i < sizeC && !*globalinter;++i)
+		for(i=0; i < sizeC && !*globalinter;++i)  //For all the points in C do the intersection test
 		{
-			inter = ray_triangle(v0, v1, v2, (*origin), dir[i]);
+			inter = ray_triangle(v0, v1, v2, (*origin), dir[i]); //Intersection function with the 3 points of the triangle, the origin, and the ith direction
 			#ifdef ALLTEST
 				if(inter) *globalinter = false;
 			#else
-				if(inter) *globalinter = true;
+				if(inter) *globalinter = true; //If and intersection has ocurred, set the global intersection flag to true
 			#endif
 		}
-		//if(globalTid == 0)printf("%d \n",i);
 	}
 
 }
 
-
+//Kernel to do the second test
+//Test in every point of the surface (A, B)
 __global__ void SecondTest(	const float3 * const A, const unsigned int sizeA, bool * const globalinter)
 {
+	//Id of the thread in the grid
 	unsigned int globalTid = blockDim.x * blockIdx.x + threadIdx.x;
 
 	bool inter = false;
@@ -162,11 +167,11 @@ __global__ void SecondTest(	const float3 * const A, const unsigned int sizeA, bo
 	
 	if(globalTid < sizeA)
 	{
-		v = A[globalTid];
+		v = A[globalTid]; //Copy the data of the point into local memory
 
 		//Second Test
 		unsigned int j;
-		for(j=0;j < N && !*globalinter;++j)
+		for(j=0;j < N && !*globalinter;++j) //Do the tests
 		{
 			inter = Test2(v, j);
 			#ifdef ALLTEST
@@ -191,10 +196,12 @@ bool CUDA::CudaIntercept(float &time, vector<Transformation> *vTrans){
 	t.m_fTranslationz = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
 
 	glm::vec3 rotation_angle = glm::normalize(glm::vec3((rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f, (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f, (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f));
-	t.m_fRotationAngle = ((rand() % RAND_MAX) / float(RAND_MAX)) * 360.0f;
+	t.m_fRotationAngle = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
 	t.m_fRotationVectorx = rotation_angle.x;
 	t.m_fRotationVectory = rotation_angle.y;
 	t.m_fRotationVectorz = rotation_angle.z;
+
+	vTrans->push_back(t);
 
 	//Generate quaternion
 	glm::quat quater = glm::quat(t.m_fRotationAngle, glm::normalize(glm::vec3(rotation_angle)));
@@ -207,34 +214,32 @@ bool CUDA::CudaIntercept(float &time, vector<Transformation> *vTrans){
 							glm::mat4();
 
 	
-	vTrans->push_back(t);
-
-	checkCudaErrors(cudaMemcpy(d_x, glm::value_ptr(mCTransfor),  16 * sizeof(float), cudaMemcpyHostToDevice));
 	
 
+	//Copy the information of the transform an the global itersection boolean
+	checkCudaErrors(cudaMemcpy(d_x, glm::value_ptr(mCTransfor),  16 * sizeof(float), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_inter, &h_inter,  sizeof(bool), cudaMemcpyHostToDevice));
 
 	//Each thread for each triangle
-	dim3 BlockDim(128, 1, 1);
-	dim3 GridDim((sizeB + BlockDim.x)/BlockDim.x, 1, 1);
-	//printf("(1:%d)", h_inter);
-	//printf("Num Faces: %d\n ThreadsxBlock: %d\n Num Blocks: %d\n", sizeB, BlockDim.x, GridDim.x);
+	dim3 BlockDim(128, 1, 1); //128 threads per block
+	dim3 GridDim((sizeB + BlockDim.x)/BlockDim.x, 1, 1); 
 
 	//First test with timer
 	GpuTimer timer;
 	timer.Start();
-	Intercept<<< GridDim, BlockDim, 100 * sizeof(float3) + sizeof(float3) + sizeof(bool) + 16 *sizeof(float) >>>(d_p1, d_p2, d_A, d_B, 100, sizeA, sizeB, d_x, d_inter);
+	Intercept<<< GridDim, BlockDim, sizeC * sizeof(float3) + sizeof(float3) + sizeof(bool) + 16 *sizeof(float) >>>(d_p1, d_p2, d_A, d_B, sizeC, sizeA, sizeB, d_x, d_inter);
 	timer.Stop();
 
 	time += timer.Elapsed();
-	cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError());
+	cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError()); //Check for errors
 
-	checkCudaErrors(cudaMemcpy(&h_inter, d_inter,  sizeof(bool), cudaMemcpyDeviceToHost));
-	//printf("(2:%d)", h_inter);
-	if(!h_inter){
+	checkCudaErrors(cudaMemcpy(&h_inter, d_inter,  sizeof(bool), cudaMemcpyDeviceToHost)); //Copy the GPU global intersection variable to know if there was an intersection
+	
+	if(!h_inter) //if there has no been an intersection then do the secon test
+	{
 
 		//One thread for each point in the surface
-		dim3 BlockDim2(128, 1, 1);
+		dim3 BlockDim2(128, 1, 1); //128 threads per block
 		dim3 GridDim2((sizeA + BlockDim.x)/BlockDim.x, 1, 1);
 
 		//Second test with timer
@@ -243,31 +248,39 @@ bool CUDA::CudaIntercept(float &time, vector<Transformation> *vTrans){
 		timer.Stop();
 
 		time += timer.Elapsed();
-		cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError());
+		cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError());//Check for errors
 
-		checkCudaErrors(cudaMemcpy(&h_inter, d_inter,  sizeof(bool), cudaMemcpyDeviceToHost));
-		//printf("(3:%d)", h_inter);
+		checkCudaErrors(cudaMemcpy(&h_inter, d_inter,  sizeof(bool), cudaMemcpyDeviceToHost));  //Copy the GPU global intersection variable to know if there was an intersection
+	
 	}
-	
-
-	
 
 	return h_inter;
-
 }
 
-
+//Function to copy all the geometry information into the GPU
 __host__ void CUDA::Init(float3 * A, uint3  * B, float3 *C, unsigned int sA, unsigned int sB, unsigned int sC){
 
+	//Check if object C can be stored in shared memory
+	cudaDeviceProp prop;
+
+	checkCudaErrors(cudaSetDevice(0));
+
+	checkCudaErrors( cudaGetDeviceProperties( &prop, 0 ) );
+
+	if(prop.sharedMemPerBlock < sC * sizeof(float3))
+	{
+		printf("Surface C cannot be stored in shared memory. Other approach should be use\n");
+		exit(0);
+	}
 
 	sizeA = sA;
 	sizeB = sB;
 	sizeC = sC;
 
 	/* initialize random seed: */
-	srand (time(NULL));
+	srand (unsigned int(time(NULL)));
 
-	checkCudaErrors(cudaSetDevice(0));
+	
 
 	//Allocate memory on the GPU
 
@@ -285,6 +298,7 @@ __host__ void CUDA::Init(float3 * A, uint3  * B, float3 *C, unsigned int sA, uns
 	checkCudaErrors(cudaMemcpy(d_B, B, sizeB * sizeof(uint3), cudaMemcpyHostToDevice));
 }
 
+//Function to free memory
 __host__ void CUDA::Destroy(){
 	//Free memory
 	checkCudaErrors(cudaFree(d_p1));
