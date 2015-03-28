@@ -242,12 +242,12 @@ c:\program files\nvidia gpu computing toolkit\cuda\v6.5\include\host_defines.h
 c:\program files\nvidia gpu computing toolkit\cuda\v6.5\include\vector_functions.h
 c:\program files\nvidia gpu computing toolkit\cuda\v6.5\include\device_launch_parameters.h
 c:\program files\nvidia gpu computing toolkit\cuda\v6.5\include\vector_types.h
-e:\users\franjav\desktop\cudaintersect\cudaintersection\kernel.cuh
+e:\users\francisco\desktop\cudaintersection\cudaintersection\kernel.cuh
 C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v6.5\include\cuda.h
 C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v6.5\include\cuda_runtime.h
 C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v6.5\include\device_launch_parameters.h
 C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v6.5\include\device_functions.h
-e:\users\franjav\desktop\cudaintersect\cudaintersection\utils.h
+e:\users\francisco\desktop\cudaintersection\cudaintersection\utils.h
 C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\include\iostream
 C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\include\istream
 C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\include\ostream
@@ -333,8 +333,130 @@ C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v6.5\include\cuda_runtime_api
 C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\include\cassert
 C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\include\assert.h
 C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\include\crtdefs.h
-e:\users\franjav\desktop\cudaintersect\cudaintersection\timer.h
+e:\users\francisco\desktop\cudaintersection\cudaintersection\timer.h
 C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v6.5\include\cuda_runtime.h
-e:\users\franjav\desktop\cudaintersect\cudaintersection\Transformation.h
+e:\users\francisco\desktop\cudaintersection\cudaintersection\Transformation.h
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include/glm/glm.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core/_fixes.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core/setup.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\./core/_detail.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\setup.hpp
+C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\include\cassert
+C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\include\assert.h
+C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\include\crtdefs.h
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\./core/_vectorize.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\./core/type.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_half.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_half.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\_detail.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_float.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_half.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\setup.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_int.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\setup.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\_detail.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_gentype.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_size.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_vec1.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_vec.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_gentype.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_float.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_int.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_size.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\_swizzle.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\_swizzle_func.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_vec1.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_vec2.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_vec.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_float.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_int.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_size.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\_swizzle.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_vec2.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_vec3.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_vec.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_float.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_int.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_size.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\_swizzle.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_vec3.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_vec4.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_vec.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_float.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_int.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_size.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\_swizzle.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_vec4.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat2x2.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_gentype.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat2x2.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat2x3.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat2x3.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat2x4.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat2x4.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat3x2.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat3x2.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat3x3.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat3x3.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat3x4.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat3x4.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat4x2.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat4x2.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat4x3.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat4x3.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat4x4.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\type_mat4x4.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\./core/func_trigonometric.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\func_trigonometric.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\./core/func_exponential.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\func_exponential.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\./core/func_common.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\_fixes.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\func_common.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\./core/func_packing.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\func_packing.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\./core/func_geometric.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\func_geometric.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\./core/func_matrix.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\func_matrix.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\./core/func_vector_relational.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\_detail.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\func_vector_relational.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\./core/func_integer.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\func_integer.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\./core/func_noise.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core\func_noise.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\./core/_swizzle.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include/glm/gtc/matrix_transform.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\gtc\../glm.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core/_fixes.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\gtc\matrix_transform.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include/glm/gtc/type_ptr.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\gtc\../glm.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core/_fixes.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\gtc\../gtc/half_float.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\gtc\../glm.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core/_fixes.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\gtc\half_float.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\gtc\../gtc/quaternion.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\gtc\../glm.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core/_fixes.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\gtc\../gtc/half_float.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\gtc\../gtc/constants.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\gtc\../glm.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\core/_fixes.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\gtc\../gtc/half_float.hpp
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\gtc\constants.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\gtc\quaternion.inl
+e:\users\francisco\desktop\cudaintersection\cudaintersection\include\glm\gtc\type_ptr.inl
 C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\include\vector
 C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\include\xmemory

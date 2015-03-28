@@ -184,36 +184,32 @@ bool CUDA::CudaIntercept(float &time, vector<Transformation> *vTrans){
 
 	Transformation t;
 
-	//Generate a random transform with scaling and translating
-	float transform[] = {	1.0f,0.0f,0.0f,0.0f,
-							0.0f,1.0f,0.0f,0.0f,
-							0.0f,0.0f,1.0f,0.0f,
-							0.0f,0.0f,0.0f,1.0f};
-
+	//Generate a random transform with scaling, translating and rotating
 	t.m_fScalar = (rand() % RAND_MAX) / float(RAND_MAX);
 	t.m_fTranslationx = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
 	t.m_fTranslationy = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
 	t.m_fTranslationz = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
 
-	t.m_fRotationAngle = 0.0f;
-	t.m_fRotationVectorx = 0.0f;
-	t.m_fRotationVectorx = 0.0f;
-	t.m_fRotationVectorx = 1.0f;
+	glm::vec3 rotation_angle = glm::normalize(glm::vec3((rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f, (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f, (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f));
+	t.m_fRotationAngle = ((rand() % RAND_MAX) / float(RAND_MAX)) * 360.0f;
+	t.m_fRotationVectorx = rotation_angle.x;
+	t.m_fRotationVectory = rotation_angle.y;
+	t.m_fRotationVectorz = rotation_angle.z;
 
-	//Translate
-	transform[3] = t.m_fTranslationx;
-	transform[7] = t.m_fTranslationy;
-	transform[11] = t.m_fTranslationz;
+	//Generate quaternion
+	glm::quat quater = glm::quat(t.m_fRotationAngle, glm::normalize(glm::vec3(rotation_angle)));
 
-	//Scaling
-	transform[0] = 
-	transform[5] = 
-	transform[10] = t.m_fScalar;
+	//Construct the transformation matrix with glm
+	glm::mat4 RotationMat = glm::mat4_cast(glm::normalize(quater));
+	glm::mat4 mCTransfor =	glm::translate(glm::mat4(), glm::vec3( t.m_fTranslationx , t.m_fTranslationy, t.m_fTranslationz)) * 
+							RotationMat * 
+							glm::scale(glm::mat4(), glm::vec3(t.m_fScalar )) * 
+							glm::mat4();
 
 	
 	vTrans->push_back(t);
 
-	checkCudaErrors(cudaMemcpy(d_x, transform,  16 * sizeof(float), cudaMemcpyHostToDevice));
+	checkCudaErrors(cudaMemcpy(d_x, glm::value_ptr(mCTransfor),  16 * sizeof(float), cudaMemcpyHostToDevice));
 	
 
 	checkCudaErrors(cudaMemcpy(d_inter, &h_inter,  sizeof(bool), cudaMemcpyHostToDevice));
@@ -263,7 +259,6 @@ bool CUDA::CudaIntercept(float &time, vector<Transformation> *vTrans){
 
 __host__ void CUDA::Init(float3 * A, uint3  * B, float3 *C, unsigned int sA, unsigned int sB, unsigned int sC){
 
-	float center[] = {0.0f,0.0f,0.0f};
 
 	sizeA = sA;
 	sizeB = sB;
@@ -284,7 +279,7 @@ __host__ void CUDA::Init(float3 * A, uint3  * B, float3 *C, unsigned int sA, uns
 	checkCudaErrors(cudaMalloc((void**)&d_inter, sizeof(bool)));
 	
 	//Send information to the GPU
-	checkCudaErrors(cudaMemcpy(d_p1, center, sizeof(float3), cudaMemcpyHostToDevice));
+	checkCudaErrors(cudaMemcpy(d_p1, C, sizeof(float3), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_p2, C, sizeC * sizeof(float3), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_A, A, sizeA * sizeof(float3), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_B, B, sizeB * sizeof(uint3), cudaMemcpyHostToDevice));

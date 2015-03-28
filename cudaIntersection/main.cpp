@@ -3,13 +3,20 @@
 #pragma comment(lib, "lib/glew32.lib")
 #pragma comment(lib, "opengl32.lib")
 
-#define GLFW_DLL
+
+
 #include "CPUtimer.h"
+
+#define GLM_FORCE_CUDA
+
+#define CUDA_CUDE
+#ifdef CUDA_CUDE
+#include "kernel.cuh"
+#endif
+
+#define GLFW_DLL
 #include "include/GL/glew.h"
 #include "include/GLFW/glfw3.h"
-#include "include/glm/glm.hpp"
-#include "include/glm/gtc/matrix_transform.hpp"
-#include "include/glm/gtc/type_ptr.hpp"
 #include "include/AntTweakBar/AntTweakBar.h"
 #include "GLSLProgram.h"
 #include "Transformation.h"
@@ -20,10 +27,9 @@
 #include <iostream>
 #include <vector>
 
-#define CUDA_CUDE
-#ifdef CUDA_CUDE
-#include "kernel.cuh"
-#endif
+
+
+
 
 #define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
@@ -51,6 +57,7 @@ namespace glfwFunc
 	bool m_bLeftButton;
 	bool m_bFlag;
 	glm::ivec2 m_MousePoint(0);
+	Transformation m_trans;
 	vector<Transformation> m_vTransformation;
 
 
@@ -76,6 +83,7 @@ namespace glfwFunc
 	void TW_CALL SetVarCallback(const void *value, void *clientData)
 	{
 		iteration = ((const int *)value)[0]; 
+		m_trans = m_vTransformation[iteration - 1];
 	}
 
 	void TW_CALL GetVarCallback(void *value, void *clientData)
@@ -275,6 +283,14 @@ namespace glfwFunc
 		//Set a new variable for the iterations
 		TwAddVarCB(myBar,"Iteracion",TW_TYPE_UINT32, SetVarCallback, GetVarCallback, &iteration, "label='Iteracion' group=Opciones");
 
+		//Set new variables for transormations
+		TwAddVarRO(myBar,"Translacion en X",TW_TYPE_FLOAT, &m_trans.m_fTranslationx, "label='Translacion en X' group=Transformacion");
+		TwAddVarRO(myBar,"Translacion en Y",TW_TYPE_FLOAT, &m_trans.m_fTranslationy, "label='Translacion en Y' group=Transformacion");
+		TwAddVarRO(myBar,"Translacion en Z",TW_TYPE_FLOAT, &m_trans.m_fTranslationz, "label='Translacion en Z' group=Transformacion");
+		TwAddVarRO(myBar,"Escalamiento",TW_TYPE_FLOAT, &m_trans.m_fScalar, "label='Escalamiento' group=Transformacion");
+		TwAddVarRO(myBar,"Angulo de rotacion",TW_TYPE_FLOAT, &m_trans.m_fRotationAngle, "label='Angulo de Rotacion' group=Transformacion");
+		TwAddVarRO(myBar,"Eje de rotacion",TW_TYPE_DIR3F, &m_trans.m_fRotationVectorx, "label='Eje de rotacion' group=Transformacion");
+
 		//Define a exit button
 		TwAddButton(myBar,"Salir", pressExit,NULL,"label='Salir' group=Archivo");
 
@@ -282,6 +298,7 @@ namespace glfwFunc
 		iteration = 0;
 		TwSetParam(myBar, "Iteracion", "min", TW_PARAM_INT32, 1, &iteration);
 		iteration = m_vTransformation.size();
+		m_trans = m_vTransformation[iteration - 1];
 		TwSetParam(myBar, "Iteracion", "max", TW_PARAM_INT32, 1, &iteration);
 		
 		//Set the callbacks!!!
@@ -308,17 +325,23 @@ namespace glfwFunc
 
 		if(m_vTransformation.size() != 0 && iteration != 0 && iteration <= m_vTransformation .size())
 		{
-			
-			mCTransfor = glm::scale(glm::mat4(), glm::vec3(m_vTransformation[iteration - 1].m_fScalar)) * mCTransfor;
+		
+			//Generate quaternion
+			glm::vec3 rotation_angle = glm::normalize(glm::vec3(m_vTransformation[iteration - 1].m_fRotationVectorx,
+																m_vTransformation[iteration - 1].m_fRotationVectory, 
+																m_vTransformation[iteration - 1].m_fRotationVectorz));
+			glm::quat quater = glm::quat(m_vTransformation[iteration - 1].m_fRotationAngle, glm::normalize(glm::vec3(rotation_angle)));
 
-			mCTransfor = glm::rotate(glm::mat4(), m_vTransformation[iteration - 1].m_fRotationAngle, 
-				glm::vec3( m_vTransformation[iteration - 1].m_fRotationVectorx, 
-				m_vTransformation[iteration - 1].m_fRotationVectory, 
-				m_vTransformation[iteration - 1].m_fRotationVectorz)) * mCTransfor;
+			//Generate rotation matrix
+			glm::mat4 RotationMat = glm::mat4_cast(glm::normalize(quater));
 
-			mCTransfor = glm::translate(glm::mat4(), glm::vec3( m_vTransformation[iteration - 1].m_fTranslationx, 
-									m_vTransformation[iteration - 1].m_fTranslationy, 
-									m_vTransformation[iteration - 1].m_fTranslationz)) * mCTransfor;
+			//Generate Transformation
+			mCTransfor =	glm::translate(glm::mat4(), glm::vec3(  m_vTransformation[iteration - 1].m_fTranslationx,
+																	m_vTransformation[iteration - 1].m_fTranslationy, 
+																	m_vTransformation[iteration - 1].m_fTranslationz)) * 
+							RotationMat * 
+							glm::scale(glm::mat4(), glm::vec3(m_vTransformation[iteration - 1].m_fScalar)) * 
+							glm::mat4();
 		}
 		
 		m_program.enable();

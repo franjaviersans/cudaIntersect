@@ -10,10 +10,16 @@
 #include "timer.h"
 #include "Transformation.h"
 
+#include "include/glm/glm.hpp"
+#include "include/glm/gtc/matrix_transform.hpp"
+#include "include/glm/gtc/type_ptr.hpp"
+
 #include <vector>
 #include <stdio.h>
 
 using std::vector;
+
+
 
 //#define ALLFALSE
 //#define ALLTRUE
@@ -34,9 +40,9 @@ using std::vector;
 	dest.y = v1.y - v2.y; \
 	dest.z = v1.z - v2.z; 
 #define MULT(dest, mat,p) \
-	dest.x = mat[0] * p.x + mat[1] * p.y + mat[2] * p.z + mat[3] * 1.0f; \
-	dest.y = mat[4] * p.x + mat[5] * p.y + mat[6] * p.z + mat[7] * 1.0f; \
-	dest.z = mat[8] * p.x + mat[9] * p.y + mat[10] * p.z + mat[11] * 1.0f; 
+	dest.x = mat[0] * p.x + mat[4] * p.y + mat[8] * p.z + mat[12] * 1.0f; \
+	dest.y = mat[1] * p.x + mat[5] * p.y + mat[9] * p.z + mat[13] * 1.0f; \
+	dest.z = mat[2] * p.x + mat[6] * p.y + mat[10] * p.z + mat[14] * 1.0f; 
 
 
 class CUDA{
