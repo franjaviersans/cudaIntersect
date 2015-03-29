@@ -114,18 +114,21 @@ __global__ void Intercept(const float3 * const p1, const float3 * const p2,
 	__syncthreads(); //Wait to all the threads in the block
 
 	//Copy all the data of C
-	if(tid < sizeC)
+	unsigned int temp = tid;
+	while(temp < sizeC)
 	{
 		//Copy a point of C to local data
-		v0 = p2[tid];
+		v0 = p2[temp];
 
 		//Transform the point 
 		MULT(vaux, lt, v0);
 
 		//store the direction of the ray in shared memory x(p2) - x(p1)
-		dir[tid].x = vaux.x - (*origin).x;
-		dir[tid].y = vaux.y - (*origin).y;
-		dir[tid].z = vaux.z - (*origin).z;
+		dir[temp].x = vaux.x - (*origin).x;
+		dir[temp].y = vaux.y - (*origin).y;
+		dir[temp].z = vaux.z - (*origin).z;
+
+		temp += blockDim.x;
 	}
 	__syncthreads(); //Wait to all the threads in the block
 
@@ -141,7 +144,7 @@ __global__ void Intercept(const float3 * const p1, const float3 * const p2,
 
 		//First test. Ray-Triangle Intersection
 		unsigned int i;
-		for(i=0; i < sizeC && !*globalinter;++i)  //For all the points in C do the intersection test
+		for(i=1; i < sizeC && !*globalinter;++i)  //For all the points in C do the intersection test
 		{
 			inter = ray_triangle(v0, v1, v2, (*origin), dir[i]); //Intersection function with the 3 points of the triangle, the origin, and the ith direction
 			#ifdef ALLTEST
@@ -190,7 +193,7 @@ bool CUDA::CudaIntercept(float &time, vector<Transformation> *vTrans){
 	Transformation t;
 
 	//Generate a random transform with scaling, translating and rotating
-	t.m_fScalar = (rand() % RAND_MAX) / float(RAND_MAX);
+	t.m_fScalar = (rand() % RAND_MAX) / float(RAND_MAX * 2.0f) + 0.5f;
 	t.m_fTranslationx = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
 	t.m_fTranslationy = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
 	t.m_fTranslationz = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
@@ -267,7 +270,7 @@ __host__ void CUDA::Init(float3 * A, uint3  * B, float3 *C, unsigned int sA, uns
 
 	checkCudaErrors( cudaGetDeviceProperties( &prop, 0 ) );
 
-	if(prop.sharedMemPerBlock < sC * sizeof(float3))
+	if(prop.sharedMemPerBlock < sC * sizeof(float3) + sizeof(float3) + sizeof(bool) + 16 *sizeof(float))
 	{
 		printf("Surface C cannot be stored in shared memory. Other approach should be use\n");
 		exit(0);
