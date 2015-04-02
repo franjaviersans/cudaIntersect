@@ -1,7 +1,7 @@
 
 
-#define CUDA_CUDE
-#ifdef CUDA_CUDE
+#define CUDA_CODE
+#ifdef CUDA_CODE
 	#include <cuda.h>
 	#include <cuda_runtime.h>
 	#include <cuda_runtime_api.h>

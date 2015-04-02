@@ -17,8 +17,6 @@ using std::vector;
 //#define ALLTRUE
 //#define ALLTEST
 
-
-#define M 2000
 #define N 800
 
 #define EPSILON 0.000001
@@ -38,38 +36,24 @@ using std::vector;
 
 
 class CUDA{
-float3 * d_p1;
-float3 * d_p2;
-float3 * d_A;
-uint3 * d_B;
-float * d_x;
-bool * d_inter;
-int sizeA, sizeB, sizeC;
+private:
+	float3 * d_p1;
+	float3 * d_p2;
+	float3 * d_A;
+	uint3 * d_B;
+	unsigned int * d_triID;
+	unsigned int * d_originID;
+	unsigned int * d_destID;
+	float * d_x;
+	unsigned int * d_inter;
+	int sizeA, sizeB, sizeC;
 
 public:
-__host__ void Init(float3 * A, uint3 * B, float3 * C, unsigned int sA, unsigned int sB, unsigned int sC);
-__host__ void Destroy();
-__host__ bool CudaIntercept(float &time, vector<Transformation> *);
+	unsigned int block, threads, threadsxblock;
+	__host__ void Init(float3 * A, uint3 * B, float3 * C, unsigned int sA, unsigned int sB, unsigned int sC);
+	__host__ void Destroy();
+	__host__ bool CudaIntercept(float &time, Transformation *);
 };
-
-
-__device__ bool ray_triangle( float3 V1,  // Triangle vertices
-                           float3 V2,
-                           float3 V3,
-                           float3 O,  //Ray origin
-                           float3 D  //Ray direction
-						   );
-
-__device__ bool Test2(float v[3], unsigned int i);
-
-
-__global__ void Intercept(const float * const p1, const float3 * const p2,
-			   const float3 * const A, const uint3 * const B,
-			   const unsigned int sizeC, const unsigned int sizeA,
-			   const unsigned int sizeB, 
-			   const float * const x,
-			   bool * globalinter);
-
 
 
 #endif

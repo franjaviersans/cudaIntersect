@@ -152,3 +152,14 @@ void C3DModel::drawObject()
 	glDrawElements(GL_TRIANGLES, m_iNTriangles * 3, GL_UNSIGNED_INT, BUFFER_OFFSET(0));
 	glBindVertexArray(0);
 }
+
+
+///
+/// Method to draw only a triangle of the object
+///
+void C3DModel::drawTriangleObject(unsigned int id)
+{
+	glBindVertexArray(m_uVAO);
+	glDrawRangeElements(GL_TRIANGLES, 0, m_iNTriangles * 3, 60, GL_UNSIGNED_INT, &m_vLocalMesh[0]+id * 3);
+	glBindVertexArray(0);
+}

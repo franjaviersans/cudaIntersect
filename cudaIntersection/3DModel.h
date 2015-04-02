@@ -59,6 +59,9 @@ public:
 	///Draw the object using the VAO
 	void drawObject();
 
+	/// Method to draw only a triangle of the object
+	void drawTriangleObject(unsigned int);
+
 	///Get the center of the object
 	inline glm::vec3 getCenter(){return m_bbox.getCenter();}
 

@@ -82,7 +82,7 @@ __global__ void Intercept(const float3 * const p1, const float3 * const p2,
 			   const unsigned int sizeC, const unsigned int sizeA,
 			   const unsigned int sizeB, 
 			   const float * const x,
-			   bool * const globalinter)
+			   unsigned int * const globalinter, unsigned int * const triID, unsigned int * const originID, unsigned int * const destID)
 {
 
 	//Shared memory declaration
@@ -144,13 +144,24 @@ __global__ void Intercept(const float3 * const p1, const float3 * const p2,
 
 		//First test. Ray-Triangle Intersection
 		unsigned int i;
-		for(i=1; i < sizeC && !*globalinter;++i)  //For all the points in C do the intersection test
+		for(i=1; i < sizeC && *globalinter == 0;++i)  //For all the points in C do the intersection test
 		{
 			inter = ray_triangle(v0, v1, v2, (*origin), dir[i]); //Intersection function with the 3 points of the triangle, the origin, and the ith direction
 			#ifdef ALLTEST
-				if(inter) *globalinter = false;
+				if(inter) *globalinter = 0;
 			#else
-				if(inter) *globalinter = true; //If and intersection has ocurred, set the global intersection flag to true
+				if(inter)
+				{
+					//Safe the intersection line and triangle
+					//We use atomicCas to only store one value
+					if( 0 == atomicCAS(globalinter, 0, 1)) //If and intersection has ocurred, set the global intersection flag to true
+					{	
+						*triID = globalTid;
+						*originID = 0;
+						*destID = i; 
+					}
+
+				}
 			#endif
 		}
 	}
@@ -159,7 +170,7 @@ __global__ void Intercept(const float3 * const p1, const float3 * const p2,
 
 //Kernel to do the second test
 //Test in every point of the surface (A, B)
-__global__ void SecondTest(	const float3 * const A, const unsigned int sizeA, bool * const globalinter)
+__global__ void SecondTest(	const float3 * const A, const unsigned int sizeA, unsigned int * const globalinter)
 {
 	//Id of the thread in the grid
 	unsigned int globalTid = blockDim.x * blockIdx.x + threadIdx.x;
@@ -174,46 +185,44 @@ __global__ void SecondTest(	const float3 * const A, const unsigned int sizeA, bo
 
 		//Second Test
 		unsigned int j;
-		for(j=0;j < N && !*globalinter;++j) //Do the tests
+		for(j=0;j < N && *globalinter == 0;++j) //Do the tests
 		{
 			inter = Test2(v, j);
 			#ifdef ALLTEST
-				if(inter) *globalinter = false;
+				if(inter) *globalinter = 0;
 			#else
-				if(inter) *globalinter = true;
+				if(inter) *globalinter = 1;
 			#endif
 		}
 		//if(globalTid == 0)printf("%d \n",j);
 	}
 }
 
-bool CUDA::CudaIntercept(float &time, vector<Transformation> *vTrans){
-	bool h_inter = false;
-
-	Transformation t;
+bool CUDA::CudaIntercept(float &time, Transformation *t){
+	unsigned int h_inter = 0;
 
 	//Generate a random transform with scaling, translating and rotating
-	t.m_fScalar = (rand() % RAND_MAX) / float(RAND_MAX * 2.0f) + 0.5f;
-	t.m_fTranslationx = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
-	t.m_fTranslationy = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
-	t.m_fTranslationz = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
+	t->m_fScalar = (rand() % RAND_MAX) / float(RAND_MAX * 2.0f) + 0.5f;
+	t->m_fTranslationx = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
+	t->m_fTranslationy = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
+	t->m_fTranslationz = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
 
 	glm::vec3 rotation_angle = glm::normalize(glm::vec3((rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f, (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f, (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f));
-	t.m_fRotationAngle = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
-	t.m_fRotationVectorx = rotation_angle.x;
-	t.m_fRotationVectory = rotation_angle.y;
-	t.m_fRotationVectorz = rotation_angle.z;
+	t->m_fRotationAngle = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
+	t->m_fRotationVectorx = rotation_angle.x;
+	t->m_fRotationVectory = rotation_angle.y;
+	t->m_fRotationVectorz = rotation_angle.z;
 
-	vTrans->push_back(t);
+	
 
 	//Generate quaternion
-	glm::quat quater = glm::quat(t.m_fRotationAngle, glm::normalize(glm::vec3(rotation_angle)));
+	glm::quat quater = glm::quat(t->m_fRotationAngle, glm::normalize(glm::vec3(rotation_angle)));
 
 	//Construct the transformation matrix with glm
 	glm::mat4 RotationMat = glm::mat4_cast(glm::normalize(quater));
-	glm::mat4 mCTransfor =	glm::translate(glm::mat4(), glm::vec3( t.m_fTranslationx , t.m_fTranslationy, t.m_fTranslationz)) * 
+	glm::mat4 mCTransfor =	glm::translate(glm::mat4(), glm::vec3( t->m_fTranslationx , t->m_fTranslationy, t->m_fTranslationz)) * 
 							RotationMat * 
-							glm::scale(glm::mat4(), glm::vec3(t.m_fScalar )) * 
+							glm::scale(glm::mat4(), glm::vec3(t->m_fScalar )) * 
 							glm::mat4();
 
 	
@@ -221,24 +230,24 @@ bool CUDA::CudaIntercept(float &time, vector<Transformation> *vTrans){
 
 	//Copy the information of the transform an the global itersection boolean
 	checkCudaErrors(cudaMemcpy(d_x, glm::value_ptr(mCTransfor),  16 * sizeof(float), cudaMemcpyHostToDevice));
-	checkCudaErrors(cudaMemcpy(d_inter, &h_inter,  sizeof(bool), cudaMemcpyHostToDevice));
+	checkCudaErrors(cudaMemcpy(d_inter, &h_inter,  sizeof(unsigned int), cudaMemcpyHostToDevice));
 
 	//Each thread for each triangle
-	dim3 BlockDim(128, 1, 1); //128 threads per block
-	dim3 GridDim((sizeB + BlockDim.x)/BlockDim.x, 1, 1); 
+	dim3 BlockDim(threadsxblock, 1, 1); //128 threads per block
+	dim3 GridDim(block, 1, 1); 
 
 	//First test with timer
 	GpuTimer timer;
 	timer.Start();
-	Intercept<<< GridDim, BlockDim, sizeC * sizeof(float3) + sizeof(float3) + sizeof(bool) + 16 *sizeof(float) >>>(d_p1, d_p2, d_A, d_B, sizeC, sizeA, sizeB, d_x, d_inter);
+	Intercept<<< GridDim, BlockDim, sizeC * sizeof(float3) + sizeof(float3) + sizeof(bool) + 16 *sizeof(float) >>>(d_p1, d_p2, d_A, d_B, sizeC, sizeA, sizeB, d_x, d_inter, d_triID, d_originID, d_destID);
 	timer.Stop();
 
 	time += timer.Elapsed();
 	cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError()); //Check for errors
 
-	checkCudaErrors(cudaMemcpy(&h_inter, d_inter,  sizeof(bool), cudaMemcpyDeviceToHost)); //Copy the GPU global intersection variable to know if there was an intersection
+	checkCudaErrors(cudaMemcpy(&h_inter, d_inter,  sizeof(unsigned int), cudaMemcpyDeviceToHost)); //Copy the GPU global intersection variable to know if there was an intersection
 	
-	if(!h_inter) //if there has no been an intersection then do the secon test
+	if(h_inter != 0) //if there has no been an intersection then do the secon test
 	{
 
 		//One thread for each point in the surface
@@ -253,11 +262,24 @@ bool CUDA::CudaIntercept(float &time, vector<Transformation> *vTrans){
 		time += timer.Elapsed();
 		cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError());//Check for errors
 
-		checkCudaErrors(cudaMemcpy(&h_inter, d_inter,  sizeof(bool), cudaMemcpyDeviceToHost));  //Copy the GPU global intersection variable to know if there was an intersection
+		checkCudaErrors(cudaMemcpy(&h_inter, d_inter,  sizeof(unsigned int ), cudaMemcpyDeviceToHost));  //Copy the GPU global intersection variable to know if there was an intersection
 	
 	}
 
-	return h_inter;
+	//Information of the intersection
+	if(h_inter != 0)
+	{
+		checkCudaErrors(cudaMemcpy(&t->triID, d_triID,  sizeof(unsigned int), cudaMemcpyDeviceToHost));
+		checkCudaErrors(cudaMemcpy(&t->originID, d_originID,  sizeof(unsigned int), cudaMemcpyDeviceToHost));
+		checkCudaErrors(cudaMemcpy(&t->destID, d_destID,  sizeof(unsigned int), cudaMemcpyDeviceToHost));
+	}
+	else
+	{
+		t->triID = t->originID = t->destID = 0;
+	}
+
+
+	return h_inter != 0;
 }
 
 //Function to copy all the geometry information into the GPU
@@ -280,19 +302,27 @@ __host__ void CUDA::Init(float3 * A, uint3  * B, float3 *C, unsigned int sA, uns
 	sizeB = sB;
 	sizeC = sC;
 
+
+	threadsxblock = 128;
+	block = (sizeB + threadsxblock)/threadsxblock;
+	threads = threadsxblock * block;
+	
+
 	/* initialize random seed: */
 	srand (unsigned int(time(NULL)));
 
 	
 
 	//Allocate memory on the GPU
-
 	checkCudaErrors(cudaMalloc((void**)&d_p1, sizeof(float3)));
 	checkCudaErrors(cudaMalloc((void**)&d_p2, sizeC * sizeof(float3)));
 	checkCudaErrors(cudaMalloc((void**)&d_A, sizeA * sizeof(float3)));
 	checkCudaErrors(cudaMalloc((void**)&d_B, sizeB * sizeof(uint3)));
 	checkCudaErrors(cudaMalloc((void**)&d_x, 16 * sizeof(float)));
-	checkCudaErrors(cudaMalloc((void**)&d_inter, sizeof(bool)));
+	checkCudaErrors(cudaMalloc((void**)&d_inter, sizeof(unsigned int )));
+	checkCudaErrors(cudaMalloc((void**)&d_triID, sizeof(unsigned int)));
+	checkCudaErrors(cudaMalloc((void**)&d_originID, sizeof(unsigned int)));
+	checkCudaErrors(cudaMalloc((void**)&d_destID, sizeof(unsigned int)));
 	
 	//Send information to the GPU
 	checkCudaErrors(cudaMemcpy(d_p1, C, sizeof(float3), cudaMemcpyHostToDevice));
@@ -310,4 +340,7 @@ __host__ void CUDA::Destroy(){
 	checkCudaErrors(cudaFree(d_B));
 	checkCudaErrors(cudaFree(d_x));
 	checkCudaErrors(cudaFree(d_inter));
+	checkCudaErrors(cudaFree(d_triID));
+	checkCudaErrors(cudaFree(d_originID));
+	checkCudaErrors(cudaFree(d_destID));
 }
