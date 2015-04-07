@@ -1,10 +1,11 @@
 #version 440
 
-uniform vec4 vec4Color;
+in vec3 vVertexColor;
 
 layout(location = 0) out vec4 vFragColor;
 
+
 void main(void)
 {
-	vFragColor = vec4Color;
+	vFragColor = vec4(vVertexColor, 1.0f);
 }

@@ -390,6 +390,10 @@ e:\users\franjav\desktop\cudaintersect\cudaintersection\include\glm\gtc\constant
 e:\users\franjav\desktop\cudaintersect\cudaintersection\include\glm\gtc\quaternion.inl
 C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\include\cstring
 e:\users\franjav\desktop\cudaintersect\cudaintersection\include\glm\gtc\type_ptr.inl
+e:\users\franjav\desktop\cudaintersect\cudaintersection\include/GL/glew.h
+C:\Program Files (x86)\Windows Kits\8.0\Include\um\GL/glu.h
+C:\Program Files (x86)\Windows Kits\8.0\Include\shared\winapifamily.h
+C:\Program Files (x86)\Windows Kits\8.0\Include\um\GL/gl.h
 e:\users\franjav\desktop\cudaintersect\cudaintersection\utils.h
 e:\users\franjav\desktop\cudaintersect\cudaintersection\Definitions.h
 C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v6.5\include\cuda.h
@@ -402,6 +406,7 @@ e:\users\franjav\desktop\cudaintersect\cudaintersection\include/glm/glm.hpp
 e:\users\franjav\desktop\cudaintersect\cudaintersection\include\glm\core/_fixes.hpp
 e:\users\franjav\desktop\cudaintersect\cudaintersection\include/glm/gtc/matrix_transform.hpp
 e:\users\franjav\desktop\cudaintersect\cudaintersection\include/glm/gtc/type_ptr.hpp
+e:\users\franjav\desktop\cudaintersect\cudaintersection\include/GL/glew.h
 C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\include\iostream
 C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\include\istream
 C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\include\ostream
@@ -478,6 +483,7 @@ e:\users\franjav\desktop\cudaintersect\cudaintersection\include/glm/glm.hpp
 e:\users\franjav\desktop\cudaintersect\cudaintersection\include\glm\core/_fixes.hpp
 e:\users\franjav\desktop\cudaintersect\cudaintersection\include/glm/gtc/matrix_transform.hpp
 e:\users\franjav\desktop\cudaintersect\cudaintersection\include/glm/gtc/type_ptr.hpp
+e:\users\franjav\desktop\cudaintersect\cudaintersection\include/GL/glew.h
 e:\users\franjav\desktop\cudaintersect\cudaintersection\Transformation.h
 C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\include\vector
 C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\include\xmemory

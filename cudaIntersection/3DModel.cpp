@@ -5,7 +5,6 @@
 #include "OGLBasic.h"
 
 //#define BUFFER_OFFSET(i) ((char *)NULL + (i))
-#define BUFFER_OFFSET(i) (reinterpret_cast<void*>(i))
 std::vector<Vertex> C3DModel::m_vVertex(0);
 std::vector<Mesh> C3DModel::m_vMesh(0);
 Vertex C3DModel::m_tempVertex = { 0, 0, 0 };
@@ -113,6 +112,24 @@ bool C3DModel::load(const std::string & sFilename)
 	m_iNPoints = m_vVertex.size();
 	m_iNTriangles = m_vMesh.size();
 
+	Vertex A, B, C, BA, CA;
+	PlaneEq t;
+	for(unsigned int i=0; i < m_vMesh.size(); ++i)
+	{
+		A = m_vVertex[m_vMesh[i].id0];
+		B = m_vVertex[m_vMesh[i].id1];
+		C = m_vVertex[m_vMesh[i].id2];
+
+		SUB(BA, B, A);
+		SUB(CA, C, A);
+
+		CROSS(t, BA, CA);
+		
+		t.w = -(DOT(t, A));
+
+		m_vLocalNormal.push_back(t);
+	}
+
 	//creating the VAO for the model
 	glGenVertexArrays(1, &m_uVAO);
 	glBindVertexArray(m_uVAO);
@@ -122,12 +139,15 @@ bool C3DModel::load(const std::string & sFilename)
 		glGenBuffers(1, &m_uVBOIndex);
 
 		glBindBuffer(GL_ARRAY_BUFFER, m_uVBO);
-		glBufferData(GL_ARRAY_BUFFER, m_iNPoints * sizeof(Vertex), &m_vVertex[0], GL_STATIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, m_iNPoints * sizeof(Vertex) + m_vLocalNormal.size() * sizeof(PlaneEq), NULL, GL_STATIC_DRAW);
+		glBufferSubData(GL_ARRAY_BUFFER, 0, m_iNPoints * sizeof(Vertex), &m_vVertex[0]);
+		glBufferSubData(GL_ARRAY_BUFFER, m_iNPoints * sizeof(Vertex), m_vLocalNormal.size() * sizeof(PlaneEq), &m_vLocalNormal[0]);
 
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_uVBOIndex);
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, m_iNTriangles * sizeof(Mesh), &m_vMesh[0], GL_STATIC_DRAW);
 
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), BUFFER_OFFSET(0)); //Vertex
+		glVertexAttribPointer(WORLD_COORD_LOCATION, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), BUFFER_OFFSET(0)); //Vertex
+		glVertexAttribPointer(NORMAL_COORD_LOCATION, 4, GL_FLOAT, GL_FALSE, sizeof(PlaneEq), BUFFER_OFFSET( m_iNPoints * sizeof(Vertex))); //Vertex
 		glEnableVertexAttribArray(0);
 
 	glBindVertexArray(0);	//VAO

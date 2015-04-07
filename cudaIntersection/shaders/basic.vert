@@ -1,9 +1,9 @@
-#version 330
+#version 440
 
 uniform mat4 mProjection, mModelView;
 
 layout(location = 0) in vec4 vVertex;
-//layout(location = 1) in vec4 vColor;
+layout(location = 2) in vec4 vNormal;
 
 //out vec4 vVertexColor;
 

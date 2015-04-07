@@ -7,6 +7,14 @@
 #include "GLSLProgram.h"
 #include "rply.h"
 
+
+struct PlaneEq
+{
+	float x;
+	float y;
+	float z;
+	float w;
+};
 struct Vertex
 {
 	float x;
@@ -34,6 +42,7 @@ private:
 	static std::vector<Mesh> m_vMesh;
 	std::vector<Vertex> m_vLocalVertex;
 	std::vector<Mesh> m_vLocalMesh;
+	std::vector<PlaneEq> m_vLocalNormal;
 	unsigned int m_uVBO;
 	unsigned int m_uVBOIndex;
 	int m_iNPoints;
@@ -73,5 +82,8 @@ public:
 
 	///Get the pointer to the data mesh
 	inline std::vector<Mesh> * GetPointerMesh(){return &m_vLocalMesh;}
+
+	///Get the pointer to the normal per triangle
+	inline std::vector<PlaneEq> * GetPointerNormal(){return &m_vLocalNormal;}
 };
 #endif

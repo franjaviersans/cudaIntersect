@@ -8,25 +8,17 @@
 #include "CPUtimer.h"
 #include "Definitions.h"
 
-#define GLFW_DLL
-#include "include/GL/glew.h"
 #include "include/GLFW/glfw3.h"
 #include "include/AntTweakBar/AntTweakBar.h"
 #include "GLSLProgram.h"
 #include "Transformation.h"
 #include "3DModel.h"
 #include "ArcBall.h"
+#include "FBOQuad.h"
 #include <stdlib.h>
 #include <string>
 #include <iostream>
 #include <vector>
-
-
-
-
-
-#define BUFFER_OFFSET(i) ((char *)NULL + (i))
-
 
 
 
@@ -53,12 +45,16 @@ namespace glfwFunc
 	const float NCP = 0.01f;
 	const float FCP = 52.f;
 	const float fAngle = 45.f;
+	FBOQuad * quad;
 	string strNameWindow = "Hello GLFW";
-	glm::vec4 m_vec4ColorAB;
-	glm::vec4 BLACK = glm::vec4(0, 0, 0, 1);
-	glm::vec4 GREEN = glm::vec4(0, 1, 0, 1);
-	glm::vec4 RED = glm::vec4(1, 0, 0, 1);
-	glm::vec4 m_vec4ColorC;
+	glm::vec4 BLACK = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+	glm::vec4 GREEN = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
+	glm::vec4 RED = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+	//glm::vec4 m_vec4ColorAB = glm::vec4(0.5f, 0.64f, 0.26f, 0.3f);
+	//glm::vec4 m_vec4ColorC = glm::vec4(0.67f, 0.28f, 0.31f, 1.0f);
+	glm::vec4 m_vec4ColorAB = glm::vec4(17.0f/256.0f, 164.0f/256.0f, 2.0f/256.0f, 0.3f);
+	glm::vec4 m_vec4ColorC = glm::vec4(255.0f/256.0f, 76.0f/256.0f, 76.0f/256.0f, 1.0f);
+	glm::mat4 m_matOrtho = glm::ortho(-0.5f, 0.5f, -0.5f, 0.5f, -0.5f, 0.5f);
 	UINT32 iteration = 0;
 	C3DModel m_model, m_cone;
 	CArcBall m_arcball;
@@ -70,7 +66,7 @@ namespace glfwFunc
 	vector<Transformation> m_vTransformation;
 
 
-	CGLSLProgram m_program;
+	CGLSLProgram m_program, m_bgprogram;
 	glm::mat4x4 mProjMatrix, mModelViewMatrix, mCTransfor;
 
 
@@ -327,25 +323,39 @@ namespace glfwFunc
 		m_program.create_link();
 		m_program.enable();
 		m_program.addAttribute("vVertex");
+		m_program.addAttribute("vNormal");
 		m_program.addUniform("mProjection");
 		m_program.addUniform("mModelView");
 		m_program.addUniform("vec4Color");
 		m_program.disable();
+		
+
+		//Load the bgShader
+		m_bgprogram.loadShader("shaders/background.vert", CGLSLProgram::VERTEX);
+		m_bgprogram.loadShader("shaders/background.frag", CGLSLProgram::FRAGMENT);
+		m_bgprogram.create_link();
+		m_bgprogram.enable();
+		m_bgprogram.addAttribute("vVertex");
+		m_bgprogram.addAttribute("vColor");
+		m_bgprogram.addUniform("mProjection");
+		m_bgprogram.disable();
+
+
+		//Load Geometry
 		m_model.load("geometry/surfaceAB.ply");
 		m_cone.load("geometry/surfaceC.ply");
-		m_vec4ColorAB = glm::vec4(1, 1, 1 , 0.3);
-		m_vec4ColorC = glm::vec4(0.1, 0.01, 0.6, 1.0);
 
 
-		TwInit(TW_OPENGL, NULL);
+		TwInit(TW_OPENGL_CORE, NULL);
 		TwWindowSize(WINDOW_WIDTH, WINDOW_HEIGHT);
 
+
+		quad = FBOQuad::Instance();
 
 
 		//Declare the bar
 		myBar = TwNewBar("Menu");
 
-		
 		
 		Q = 10;
 		M = 2000;
@@ -357,9 +367,11 @@ namespace glfwFunc
 			//Pass the data to GPU
 			c.Init((float3 *)((m_model.GetPointerData())->data()), 
 									(uint3* )((m_model.GetPointerMesh())->data()), 
+									(float4 *)((m_model.GetPointerNormal())->data()),
 									(float3 *)((m_cone.GetPointerData())->data()),
 									(m_model.GetPointerData())->size(), 
 									(m_model.GetPointerMesh())->size(),
+									(m_model.GetPointerNormal())->size(),
 									(m_cone.GetPointerData())->size());
 			bloques = c.block;
 			hilos = c.threads;
@@ -422,6 +434,7 @@ namespace glfwFunc
 	{
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		//glClearColor(0.94f, 0.94f, 0.94f, 0.f);
+		//glClearColor(0.25f, 0.25f, 0.25f, 0.f);
 		glClearColor(0.54f, 0.54f, 0.54f, 0.f);
 		mModelViewMatrix = glm::translate(glm::mat4(), glm::vec3(0, 0, -6.f)) * m_arcball.GetTransformation();
 
@@ -448,7 +461,18 @@ namespace glfwFunc
 							glm::mat4();
 		}
 		
+
+		m_bgprogram.enable();
+		{
+			glDisable(GL_DEPTH_TEST);
+			glUniformMatrix4fv(m_bgprogram.getLocation("mProjection"), 1, GL_FALSE, glm::value_ptr(m_matOrtho));
+			quad->Draw();
+			glEnable(GL_DEPTH_TEST);
+		}
+		m_bgprogram.disable();
+
 		m_program.enable();
+		{
 			glUniformMatrix4fv(m_program.getLocation("mProjection"), 1, GL_FALSE, glm::value_ptr(mProjMatrix));
 			mModelViewMatrix = glm::translate(glm::mat4(), glm::vec3(0, 0, -6.f)) * glm::scale(glm::mat4(), glm::vec3(0.6, 0.6, 0.6)) * m_arcball.GetTransformation();
 			glUniformMatrix4fv(m_program.getLocation("mModelView"), 1, GL_FALSE, glm::value_ptr(mModelViewMatrix));
@@ -471,7 +495,7 @@ namespace glfwFunc
 			m_cone.drawObject();
 			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 			glPolygonOffset(1, 1);
-			glLineWidth(2.0f);
+			glLineWidth(3.0f);
 			glUniform4fv(m_program.getLocation("vec4Color"), 1, glm::value_ptr(BLACK));
 			m_cone.drawObject();
 			
@@ -481,6 +505,7 @@ namespace glfwFunc
 			glLineWidth(1.0);
 			glUniform4fv(m_program.getLocation("vec4Color"), 1, glm::value_ptr(m_vec4ColorAB));
 			m_model.drawObject();	
+		}
 		m_program.disable();
 
 
@@ -498,6 +523,7 @@ namespace glfwFunc
 		m_cone.deleteBuffers();
 		glfwDestroyWindow(glfwFunc::glfwWindow);
 		glfwTerminate();
+		delete quad;
 	}
 };
 

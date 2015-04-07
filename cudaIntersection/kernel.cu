@@ -198,21 +198,86 @@ __global__ void SecondTest(	const float3 * const A, const unsigned int sizeA, un
 	}
 }
 
+
+__global__ void Inside(const float3 * const p1,
+			   const float4 * const normal, const unsigned int sizeNormal, 
+			   const float transX, const float transY, const float transZ, unsigned int * const globalinter)
+{
+
+	//Shared memory declaration
+	extern __shared__ char buffer[];
+
+	//All point of C will be stored in the array dir in shared memory
+	float3 * center = (float3 *)&buffer[0]; //The origin will be shared too
+
+	//Id of the thread within a block and within the grid
+	unsigned int tid = threadIdx.x;
+	unsigned int globalTid = blockDim.x * blockIdx.x + threadIdx.x;
+
+	//Auxiliar variables
+	float3 vaux;
+	float4 n;
+
+	//if it is the first thread of the block
+	if(tid == 0)
+	{
+		vaux = *p1; //Copy the data of the origin of the ray
+		(*center).x = vaux.x + transX;
+		(*center).y = vaux.y + transY;
+		(*center).z = vaux.z + transZ;
+	}
+	__syncthreads(); //Wait to all the threads in the block
+
+	if(globalTid < sizeNormal){
+		n = normal[globalTid];
+		float res = DOT(n, (*center));
+		if(res + n.w > 0.0f)
+		{
+			*globalinter = 1;
+		}
+	}
+}
+
 bool CUDA::CudaIntercept(float &time, Transformation *t){
-	unsigned int h_inter = 0;
+	unsigned int h_inter = 1;
+	GpuTimer timer;
 
 	//Generate a random transform with scaling, translating and rotating
+
+	//Check if center is inside surface (A, B)
+	while(h_inter != 0)
+	{
+		h_inter = 0;
+		checkCudaErrors(cudaMemcpy(d_inter, &h_inter,  sizeof(unsigned int), cudaMemcpyHostToDevice));
+
+		t->m_fTranslationx = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f + m_transX;
+		t->m_fTranslationy = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f + m_transY;
+		t->m_fTranslationz = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f + m_transZ;
+
+		//Each thread for each triangle
+		dim3 BlockDimAux(threadsxblock, 1, 1); //128 threads per block
+		dim3 GridDimAux(block, 1, 1); 
+
+		//We test if "center" is inside surface (A, B)
+		timer.Start();
+		Inside<<< GridDimAux, BlockDimAux, sizeof(float3)>>>(d_p1, d_Normal, sizeN, t->m_fTranslationx, t->m_fTranslationy, t->m_fTranslationz, d_inter);
+		timer.Stop();
+
+		time += timer.Elapsed();
+		cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError()); //Check for errors
+		
+		checkCudaErrors(cudaMemcpy(&h_inter, d_inter,  sizeof(unsigned int), cudaMemcpyDeviceToHost)); //Copy the GPU global intersection variable to know if there was an intersection
+	}
+
+
 	t->m_fScalar = (rand() % RAND_MAX) / float(RAND_MAX * 2.0f) + 0.5f;
-	t->m_fTranslationx = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
-	t->m_fTranslationy = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
-	t->m_fTranslationz = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
+	
 
 	glm::vec3 rotation_angle = glm::normalize(glm::vec3((rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f, (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f, (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f));
 	t->m_fRotationAngle = (rand() % RAND_MAX) / float(RAND_MAX/2.0f) -1.0f;
 	t->m_fRotationVectorx = rotation_angle.x;
 	t->m_fRotationVectory = rotation_angle.y;
 	t->m_fRotationVectorz = rotation_angle.z;
-
 	
 
 	//Generate quaternion
@@ -225,8 +290,7 @@ bool CUDA::CudaIntercept(float &time, Transformation *t){
 							glm::scale(glm::mat4(), glm::vec3(t->m_fScalar )) * 
 							glm::mat4();
 
-	
-	
+	h_inter = 0;
 
 	//Copy the information of the transform an the global itersection boolean
 	checkCudaErrors(cudaMemcpy(d_x, glm::value_ptr(mCTransfor),  16 * sizeof(float), cudaMemcpyHostToDevice));
@@ -237,7 +301,6 @@ bool CUDA::CudaIntercept(float &time, Transformation *t){
 	dim3 GridDim(block, 1, 1); 
 
 	//First test with timer
-	GpuTimer timer;
 	timer.Start();
 	Intercept<<< GridDim, BlockDim, sizeC * sizeof(float3) + sizeof(float3) + sizeof(bool) + 16 *sizeof(float) >>>(d_p1, d_p2, d_A, d_B, sizeC, sizeA, sizeB, d_x, d_inter, d_triID, d_originID, d_destID);
 	timer.Stop();
@@ -249,7 +312,6 @@ bool CUDA::CudaIntercept(float &time, Transformation *t){
 	
 	if(h_inter != 0) //if there has no been an intersection then do the secon test
 	{
-
 		//One thread for each point in the surface
 		dim3 BlockDim2(128, 1, 1); //128 threads per block
 		dim3 GridDim2((sizeA + BlockDim.x)/BlockDim.x, 1, 1);
@@ -262,8 +324,7 @@ bool CUDA::CudaIntercept(float &time, Transformation *t){
 		time += timer.Elapsed();
 		cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError());//Check for errors
 
-		checkCudaErrors(cudaMemcpy(&h_inter, d_inter,  sizeof(unsigned int ), cudaMemcpyDeviceToHost));  //Copy the GPU global intersection variable to know if there was an intersection
-	
+		checkCudaErrors(cudaMemcpy(&h_inter, d_inter,  sizeof(unsigned int ), cudaMemcpyDeviceToHost));  //Copy the GPU global intersection variable to know if there was an intersection	
 	}
 
 	//Information of the intersection
@@ -283,7 +344,12 @@ bool CUDA::CudaIntercept(float &time, Transformation *t){
 }
 
 //Function to copy all the geometry information into the GPU
-__host__ void CUDA::Init(float3 * A, uint3  * B, float3 *C, unsigned int sA, unsigned int sB, unsigned int sC){
+__host__ void CUDA::Init(float3 * A, uint3 * B, float4 * Normal, float3 * C, unsigned int sA, unsigned int sB, unsigned int sN, unsigned int sC){
+
+	/*for(unsigned int i=0;i<sN;++i)
+	{
+		printf("%f %f %f \n", Normal[i].x, Normal[i].y, Normal[i].z);
+	}*/
 
 	//Check if object C can be stored in shared memory
 	cudaDeviceProp prop;
@@ -301,6 +367,7 @@ __host__ void CUDA::Init(float3 * A, uint3  * B, float3 *C, unsigned int sA, uns
 	sizeA = sA;
 	sizeB = sB;
 	sizeC = sC;
+	sizeN = sN;
 
 
 	threadsxblock = 128;
@@ -318,6 +385,7 @@ __host__ void CUDA::Init(float3 * A, uint3  * B, float3 *C, unsigned int sA, uns
 	checkCudaErrors(cudaMalloc((void**)&d_p2, sizeC * sizeof(float3)));
 	checkCudaErrors(cudaMalloc((void**)&d_A, sizeA * sizeof(float3)));
 	checkCudaErrors(cudaMalloc((void**)&d_B, sizeB * sizeof(uint3)));
+	checkCudaErrors(cudaMalloc((void**)&d_Normal, sizeN * sizeof(float4)));
 	checkCudaErrors(cudaMalloc((void**)&d_x, 16 * sizeof(float)));
 	checkCudaErrors(cudaMalloc((void**)&d_inter, sizeof(unsigned int )));
 	checkCudaErrors(cudaMalloc((void**)&d_triID, sizeof(unsigned int)));
@@ -329,6 +397,13 @@ __host__ void CUDA::Init(float3 * A, uint3  * B, float3 *C, unsigned int sA, uns
 	checkCudaErrors(cudaMemcpy(d_p2, C, sizeC * sizeof(float3), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_A, A, sizeA * sizeof(float3), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_B, B, sizeB * sizeof(uint3), cudaMemcpyHostToDevice));
+	checkCudaErrors(cudaMemcpy(d_Normal, Normal, sizeN * sizeof(float4), cudaMemcpyHostToDevice));
+
+
+	//Move the point p1 to center
+	m_transX = -C[0].x;
+	m_transY = -C[0].y;
+	m_transZ = -C[0].z;
 }
 
 //Function to free memory
@@ -338,6 +413,7 @@ __host__ void CUDA::Destroy(){
 	checkCudaErrors(cudaFree(d_p2));
 	checkCudaErrors(cudaFree(d_A));
 	checkCudaErrors(cudaFree(d_B));
+	checkCudaErrors(cudaFree(d_Normal));
 	checkCudaErrors(cudaFree(d_x));
 	checkCudaErrors(cudaFree(d_inter));
 	checkCudaErrors(cudaFree(d_triID));
