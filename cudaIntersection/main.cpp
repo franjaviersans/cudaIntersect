@@ -47,6 +47,8 @@ namespace glfwFunc
 	const float fAngle = 45.f;
 	FBOQuad * quad;
 	string strNameWindow = "Hello GLFW";
+	glm::vec3 eye = glm::vec3(0.0f, 0.0f, 0.0f);
+	glm::vec3 lightdir = glm::vec3(3.0f, 3.0f, 3.0f);
 	glm::vec4 BLACK = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
 	glm::vec4 GREEN = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
 	glm::vec4 RED = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
@@ -103,7 +105,7 @@ namespace glfwFunc
 				t.intersection = finish;
 
 				if(Q < M && i % Q == 0) m_vTransformation.push_back(t);
-				else if(Q > M && i == M - 1 ) m_vTransformation.push_back(t);
+				else if(Q >= M && i == M - 1 ) m_vTransformation.push_back(t);
 			}
 
 			//Print the total GPUtime of execution
@@ -327,6 +329,8 @@ namespace glfwFunc
 		m_program.addUniform("mProjection");
 		m_program.addUniform("mModelView");
 		m_program.addUniform("vec4Color");
+		m_program.addUniform("vec3Eye");
+		m_program.addUniform("vec3Lightdir");
 		m_program.disable();
 		
 
@@ -475,7 +479,7 @@ namespace glfwFunc
 		{
 			glUniformMatrix4fv(m_program.getLocation("mProjection"), 1, GL_FALSE, glm::value_ptr(mProjMatrix));
 			mModelViewMatrix = glm::translate(glm::mat4(), glm::vec3(0, 0, -6.f)) * glm::scale(glm::mat4(), glm::vec3(0.6, 0.6, 0.6)) * m_arcball.GetTransformation();
-			glUniformMatrix4fv(m_program.getLocation("mModelView"), 1, GL_FALSE, glm::value_ptr(mModelViewMatrix));
+			//glUniformMatrix4fv(m_program.getLocation("mModelView"), 1, GL_FALSE, glm::value_ptr(mModelViewMatrix));
 
 			/*if(m_vTransformation.size() != 0 && iteration != 0 && iteration <= m_vTransformation .size() && m_vTransformation[iteration - 1].intersection)
 			{
@@ -489,9 +493,15 @@ namespace glfwFunc
 			}*/
 			
 			//ModelView for the cone
-			glUniformMatrix4fv(m_program.getLocation("mModelView"), 1, GL_FALSE, glm::value_ptr(mModelViewMatrix * mCTransfor));
+			glm::mat4 mataux = mModelViewMatrix * mCTransfor;
+			
+			glUniformMatrix4fv(m_program.getLocation("mModelView"), 1, GL_FALSE, glm::value_ptr(mataux));
+			mataux = glm::inverse(mataux);
+			glm::vec4 auxEye = mataux * glm::vec4(eye, 1.0f), auxLightdir = mataux * glm::vec4(lightdir, 0.0f);
 
 			glUniform4fv(m_program.getLocation("vec4Color"), 1, glm::value_ptr(m_vec4ColorC));
+			glUniform3fv(m_program.getLocation("vec3Eye"), 1, glm::value_ptr(auxEye));
+			glUniform3fv(m_program.getLocation("vec3Lightdir"), 1, glm::value_ptr(auxLightdir));
 			m_cone.drawObject();
 			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 			glPolygonOffset(1, 1);
@@ -501,9 +511,16 @@ namespace glfwFunc
 			
 			//Reset modelview
 			glUniformMatrix4fv(m_program.getLocation("mModelView"), 1, GL_FALSE, glm::value_ptr(mModelViewMatrix));
+			mataux = glm::inverse(mModelViewMatrix);
+			auxEye = mataux * glm::vec4(eye, 1.0f);
+			auxLightdir = mataux * glm::vec4(lightdir, 0.0f);
+
+			glUniform4fv(m_program.getLocation("vec4Color"), 1, glm::value_ptr(m_vec4ColorAB));
+			glUniform3fv(m_program.getLocation("vec3Eye"), 1, glm::value_ptr(auxEye));
+			glUniform3fv(m_program.getLocation("vec3Lightdir"), 1, glm::value_ptr(auxLightdir));
+
 			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 			glLineWidth(1.0);
-			glUniform4fv(m_program.getLocation("vec4Color"), 1, glm::value_ptr(m_vec4ColorAB));
 			m_model.drawObject();	
 		}
 		m_program.disable();

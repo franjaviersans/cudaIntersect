@@ -43,6 +43,7 @@ private:
 	std::vector<Vertex> m_vLocalVertex;
 	std::vector<Mesh> m_vLocalMesh;
 	std::vector<PlaneEq> m_vLocalNormal;
+	std::vector<Vertex> m_vLocalNormalVertex;
 	unsigned int m_uVBO;
 	unsigned int m_uVBOIndex;
 	int m_iNPoints;
