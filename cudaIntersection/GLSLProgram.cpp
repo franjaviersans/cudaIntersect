@@ -93,7 +93,7 @@ void CGLSLProgram::loadShader(std::string strFileName, SHADERTYPE typeShader)
 		{
 			char infoLog[1024];
 			glGetShaderInfoLog(hShader, 1024, NULL, infoLog);
-			//TRACE("The shader at %s  failed to compile with the following errors : %s\n", strFileName.c_str(), infoLog);
+			printf("The shader at %s  failed to compile with the following errors : %s\n", strFileName.c_str(), infoLog);
 			glDeleteShader(hShader);
 		}
 		else	//here, everything is OK

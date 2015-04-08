@@ -5,7 +5,6 @@
 #include "OGLBasic.h"
 
 //#define BUFFER_OFFSET(i) ((char *)NULL + (i))
-#define BUFFER_OFFSET(i) (reinterpret_cast<void*>(i))
 std::vector<Vertex> C3DModel::m_vVertex(0);
 std::vector<Mesh> C3DModel::m_vMesh(0);
 Vertex C3DModel::m_tempVertex = { 0, 0, 0 };
@@ -113,6 +112,41 @@ bool C3DModel::load(const std::string & sFilename)
 	m_iNPoints = m_vVertex.size();
 	m_iNTriangles = m_vMesh.size();
 
+	m_vLocalNormalVertex.resize(m_iNPoints);
+
+	for(unsigned int j=0; j < m_iNPoints; ++j) m_vLocalNormalVertex[j].x = 0.0f, m_vLocalNormalVertex[j].y = 0.0f, m_vLocalNormalVertex[j].z = 0.0f;
+
+	Vertex A, B, C, BA, CA;
+	PlaneEq t;
+	for(unsigned int i=0; i < m_vMesh.size(); ++i)
+	{
+		A = m_vVertex[m_vMesh[i].id0];
+		B = m_vVertex[m_vMesh[i].id1];
+		C = m_vVertex[m_vMesh[i].id2];
+
+		SUB(BA, B, A);
+		SUB(CA, C, A);
+
+		CROSS(t, BA, CA);
+		
+		t.w = -(DOT(t, A));
+
+		m_vLocalNormal.push_back(t);
+
+		//Add this normal to every point normal
+		m_vLocalNormalVertex[m_vMesh[i].id0].x += m_vLocalNormal[i].x;
+		m_vLocalNormalVertex[m_vMesh[i].id0].y += m_vLocalNormal[i].y;
+		m_vLocalNormalVertex[m_vMesh[i].id0].z += m_vLocalNormal[i].z;
+
+		m_vLocalNormalVertex[m_vMesh[i].id1].x += m_vLocalNormal[i].x;
+		m_vLocalNormalVertex[m_vMesh[i].id1].y += m_vLocalNormal[i].y;
+		m_vLocalNormalVertex[m_vMesh[i].id1].z += m_vLocalNormal[i].z;
+
+		m_vLocalNormalVertex[m_vMesh[i].id2].x += m_vLocalNormal[i].x;
+		m_vLocalNormalVertex[m_vMesh[i].id2].y += m_vLocalNormal[i].y;
+		m_vLocalNormalVertex[m_vMesh[i].id2].z += m_vLocalNormal[i].z;
+	}
+
 	//creating the VAO for the model
 	glGenVertexArrays(1, &m_uVAO);
 	glBindVertexArray(m_uVAO);
@@ -122,13 +156,17 @@ bool C3DModel::load(const std::string & sFilename)
 		glGenBuffers(1, &m_uVBOIndex);
 
 		glBindBuffer(GL_ARRAY_BUFFER, m_uVBO);
-		glBufferData(GL_ARRAY_BUFFER, m_iNPoints * sizeof(Vertex), &m_vVertex[0], GL_STATIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, m_iNPoints * sizeof(Vertex) + m_iNPoints * sizeof(Vertex), NULL, GL_STATIC_DRAW);
+		glBufferSubData(GL_ARRAY_BUFFER, 0, m_iNPoints * sizeof(Vertex), &m_vVertex[0]);
+		glBufferSubData(GL_ARRAY_BUFFER, m_iNPoints * sizeof(Vertex), m_iNPoints * sizeof(Vertex), &m_vLocalNormalVertex[0]);
 
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_uVBOIndex);
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, m_iNTriangles * sizeof(Mesh), &m_vMesh[0], GL_STATIC_DRAW);
 
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), BUFFER_OFFSET(0)); //Vertex
-		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(WORLD_COORD_LOCATION, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), BUFFER_OFFSET(0)); //Vertex
+		glVertexAttribPointer(NORMAL_COORD_LOCATION, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), BUFFER_OFFSET(m_iNPoints * sizeof(Vertex))); //Normals
+		glEnableVertexAttribArray(WORLD_COORD_LOCATION);
+		glEnableVertexAttribArray(NORMAL_COORD_LOCATION);
 
 	glBindVertexArray(0);	//VAO
 
@@ -150,5 +188,16 @@ void C3DModel::drawObject()
 {
 	glBindVertexArray(m_uVAO);
 	glDrawElements(GL_TRIANGLES, m_iNTriangles * 3, GL_UNSIGNED_INT, BUFFER_OFFSET(0));
+	glBindVertexArray(0);
+}
+
+
+///
+/// Method to draw only a triangle of the object
+///
+void C3DModel::drawTriangleObject(unsigned int id)
+{
+	glBindVertexArray(m_uVAO);
+	glDrawRangeElements(GL_TRIANGLES, 0, m_iNTriangles * 3, 60, GL_UNSIGNED_INT, &m_vLocalMesh[0]+id * 3);
 	glBindVertexArray(0);
 }

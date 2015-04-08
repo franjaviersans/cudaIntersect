@@ -164,6 +164,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClInclude Include="BoundingBox.h" />
     <ClInclude Include="CPUtimer.h" />
     <ClInclude Include="Definitions.h" />
+    <ClInclude Include="FBOQuad.h" />
     <ClInclude Include="GLSLProgram.h" />
     <ClInclude Include="kernel.cuh" />
     <ClInclude Include="OGLBasic.h" />
@@ -177,6 +178,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClCompile Include="ArcBall.cpp" />
     <ClCompile Include="ArcBallMatrix.cpp" />
     <ClCompile Include="BoundingBox.cpp" />
+    <ClCompile Include="FBOQuad.cpp" />
     <ClCompile Include="GLSLProgram.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="rply.c" />

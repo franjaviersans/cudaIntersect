@@ -8,25 +8,17 @@
 #include "CPUtimer.h"
 #include "Definitions.h"
 
-#define GLFW_DLL
-#include "include/GL/glew.h"
 #include "include/GLFW/glfw3.h"
 #include "include/AntTweakBar/AntTweakBar.h"
 #include "GLSLProgram.h"
 #include "Transformation.h"
 #include "3DModel.h"
 #include "ArcBall.h"
+#include "FBOQuad.h"
 #include <stdlib.h>
 #include <string>
 #include <iostream>
 #include <vector>
-
-
-
-
-
-#define BUFFER_OFFSET(i) ((char *)NULL + (i))
-
 
 
 
@@ -35,19 +27,40 @@ using namespace std;
 ///< Only wrapping the glfw functions
 namespace glfwFunc
 {
+
+	#ifdef CUDA_CODE
+		//Create a class with the CUDA wraper
+		CUDA c;
+	#endif
 	GLFWwindow* glfwWindow;
 	const unsigned int WINDOW_WIDTH = 1024;
 	const unsigned int WINDOW_HEIGHT = 650;
+	unsigned int Q;
+	unsigned int M;
+	unsigned int muestras;
+	float tiempo_total;
+	float tiempo_computo;
+	float tiempo_promedio;
+	unsigned int bloques, hilos, hilosxbloque;
 	const float NCP = 0.01f;
 	const float FCP = 52.f;
 	const float fAngle = 45.f;
+	FBOQuad * quad;
 	string strNameWindow = "Hello GLFW";
-	glm::vec4 m_vec4ColorAB;
-	glm::vec4 BLACK = glm::vec4(0, 0, 0, 1);
-	glm::vec4 m_vec4ColorC;
+	glm::vec3 eye = glm::vec3(0.0f, 0.0f, 0.0f);
+	glm::vec3 lightdir = glm::vec3(3.0f, 3.0f, 3.0f);
+	glm::vec4 BLACK = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+	glm::vec4 GREEN = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
+	glm::vec4 RED = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+	//glm::vec4 m_vec4ColorAB = glm::vec4(0.5f, 0.64f, 0.26f, 0.3f);
+	//glm::vec4 m_vec4ColorC = glm::vec4(0.67f, 0.28f, 0.31f, 1.0f);
+	glm::vec4 m_vec4ColorAB = glm::vec4(17.0f/256.0f, 164.0f/256.0f, 2.0f/256.0f, 0.3f);
+	glm::vec4 m_vec4ColorC = glm::vec4(255.0f/256.0f, 76.0f/256.0f, 76.0f/256.0f, 1.0f);
+	glm::mat4 m_matOrtho = glm::ortho(-0.5f, 0.5f, -0.5f, 0.5f, -0.5f, 0.5f);
 	UINT32 iteration = 0;
 	C3DModel m_model, m_cone;
 	CArcBall m_arcball;
+	TwBar *myBar;
 	bool m_bLeftButton;
 	bool m_bFlag;
 	glm::ivec2 m_MousePoint(0);
@@ -55,7 +68,7 @@ namespace glfwFunc
 	vector<Transformation> m_vTransformation;
 
 
-	CGLSLProgram m_program;
+	CGLSLProgram m_program, m_bgprogram;
 	glm::mat4x4 mProjMatrix, mModelViewMatrix, mCTransfor;
 
 
@@ -63,6 +76,94 @@ namespace glfwFunc
 	{ 
 		TwTerminate();
 		exit(0);
+	}
+
+	void TW_CALL pressStart(void *clientData)
+	{ 
+		unsigned int i = 0;
+		m_vTransformation.clear();		
+		#ifdef CUDA_CODE
+			float total_time = 0;
+
+			//A timer to know how much the CPU is
+			CPUTimer timer;
+
+			//Start CPU timer
+			timer.StartCounter();
+
+			
+			bool finish = true;
+
+			//Do M iterations to test the data
+			for(i = 0;i < M /*&& finish*/;++i)
+			{
+				Transformation t;
+	
+				finish = c.CudaIntercept(total_time, &t);
+
+				t.iteration = i;
+				t.intersection = finish;
+
+				if(Q < M && i % Q == 0) m_vTransformation.push_back(t);
+				else if(Q >= M && i == M - 1 ) m_vTransformation.push_back(t);
+			}
+
+			//Print the total GPUtime of execution
+			printf("Total time: %f msecs.\n", total_time);
+
+			//Print the average GPU time per iteration
+			printf("Average: %f msecs.\n", total_time / i);
+
+			//Total execution time
+			cout << "Tiempo: "<< timer.GetCounter() <<" microseconds\n";
+
+
+			tiempo_total = float(timer.GetCounter());
+			tiempo_computo = total_time;
+			tiempo_promedio = total_time / i;
+		#endif
+
+		//Set the min and the max in the range of the iteration number
+		iteration = 0;
+		TwSetParam(myBar, "Muestra", "min", TW_PARAM_INT32, 1, &iteration);
+		iteration = m_vTransformation.size();
+		TwSetParam(myBar, "Muestra", "max", TW_PARAM_INT32, 1, &iteration);
+
+		iteration = m_vTransformation.size();
+		if(i > 0) m_trans = m_vTransformation[iteration - 1];
+		else{
+			m_trans.m_fRotationAngle = 0.0f;
+			m_trans.m_fRotationVectorx = 0.0f;
+			m_trans.m_fRotationVectory = 0.0f;
+			m_trans.m_fRotationVectorz = 0.0f;
+			m_trans.m_fScalar = 0.0f;
+			m_trans.m_fTranslationx = 0.0f;
+			m_trans.m_fTranslationy = 0.0f;
+			m_trans.m_fTranslationz = 0.0f;
+			m_trans.intersection = false;
+			m_trans.iteration = 0;
+			tiempo_total = 0;
+			tiempo_computo = 0;
+			tiempo_promedio = 0;
+		}
+	}
+
+	//Reset GUI
+	void TW_CALL pressClear(void *clientData)
+	{ 
+		tiempo_total = 0;
+		tiempo_computo = 0;
+		tiempo_promedio = 0;
+		iteration = 0;
+		m_vTransformation.clear();
+		m_trans.m_fRotationAngle = 0.0f;
+		m_trans.m_fRotationVectorx = 0.0f;
+		m_trans.m_fRotationVectory = 0.0f;
+		m_trans.m_fRotationVectorz = 0.0f;
+		m_trans.m_fScalar = 0.0f;
+		m_trans.m_fTranslationx = 0.0f;
+		m_trans.m_fTranslationy = 0.0f;
+		m_trans.m_fTranslationz = 0.0f;
 	}
 
 	inline int TwEventMouseWheelGLFW3(GLFWwindow* window, double xoffset, double yoffset)
@@ -91,7 +192,8 @@ namespace glfwFunc
 			m_trans.m_fTranslationx = 0.0f;
 			m_trans.m_fTranslationy = 0.0f;
 			m_trans.m_fTranslationz = 0.0f;
-
+			m_trans.intersection = false;
+			m_trans.iteration = 0;
 		}
 	}
 
@@ -223,76 +325,82 @@ namespace glfwFunc
 		m_program.create_link();
 		m_program.enable();
 		m_program.addAttribute("vVertex");
+		m_program.addAttribute("vNormal");
 		m_program.addUniform("mProjection");
 		m_program.addUniform("mModelView");
 		m_program.addUniform("vec4Color");
+		m_program.addUniform("vec3Eye");
+		m_program.addUniform("vec3Lightdir");
 		m_program.disable();
+		
+
+		//Load the bgShader
+		m_bgprogram.loadShader("shaders/background.vert", CGLSLProgram::VERTEX);
+		m_bgprogram.loadShader("shaders/background.frag", CGLSLProgram::FRAGMENT);
+		m_bgprogram.create_link();
+		m_bgprogram.enable();
+		m_bgprogram.addAttribute("vVertex");
+		m_bgprogram.addAttribute("vColor");
+		m_bgprogram.addUniform("mProjection");
+		m_bgprogram.disable();
+
+
+		//Load Geometry
 		m_model.load("geometry/surfaceAB.ply");
 		m_cone.load("geometry/surfaceC.ply");
-		m_vec4ColorAB = glm::vec4(1, 1, 1 , 0.3);
-		m_vec4ColorC = glm::vec4(0.1, 0.01, 0.6, 1.0);
 
 
-		TwInit(TW_OPENGL, NULL);
+		TwInit(TW_OPENGL_CORE, NULL);
 		TwWindowSize(WINDOW_WIDTH, WINDOW_HEIGHT);
 
 
-
-
-
-
-		float total_time = 0;
-
-		
-		
-		#ifdef CUDA_CUDE
-			//A timer to know how much the CPU is
-			CPUTimer timer;
-
-			//Start CPU timer
-			timer.StartCounter();
-
-			//Create a class with the CUDA wraper
-			CUDA c;
-
-			//Pass the data
-			c.Init((float3 *)((m_model.GetPointerData())->data()), 
-									(uint3* )((m_model.GetPointerMesh())->data()), 
-									(float3 *)((m_cone.GetPointerData())->data()),
-									(m_model.GetPointerData())->size(), 
-									(m_model.GetPointerMesh())->size(),
-									(m_cone.GetPointerData())->size());
-
-			int t;
-			bool finish = true;
-
-			//Do M iterations to test the data
-			for(t = 0;t < M && finish;++t)
-			{
-				finish = c.CudaIntercept(total_time, &m_vTransformation);
-			}
-
-			//Print the total GPUtime of execution
-			printf("Total time: %f msecs.\n", total_time);
-
-			//Print the average GPU time per iteration
-			printf("Average: %f msecs.\n", total_time / t);
-
-			c.Destroy();
-
-			//Total execution time
-			cout << "Tiempo: "<< timer.GetCounter() <<" microseconds\n";
-		#endif
+		quad = FBOQuad::Instance();
 
 
 		//Declare the bar
-		TwBar *myBar;
-		myBar = TwNewBar("Opciones");
+		myBar = TwNewBar("Menu");
+
+		
+		Q = 10;
+		M = 2000;
+
+		bloques = 0; 
+		hilos = 0;
+		hilosxbloque = 0;
+		#ifdef CUDA_CODE
+			//Pass the data to GPU
+			c.Init((float3 *)((m_model.GetPointerData())->data()), 
+									(uint3* )((m_model.GetPointerMesh())->data()), 
+									(float4 *)((m_model.GetPointerNormal())->data()),
+									(float3 *)((m_cone.GetPointerData())->data()),
+									(m_model.GetPointerData())->size(), 
+									(m_model.GetPointerMesh())->size(),
+									(m_model.GetPointerNormal())->size(),
+									(m_cone.GetPointerData())->size());
+			bloques = c.block;
+			hilos = c.threads;
+			hilosxbloque = c.threadsxblock;
+		#endif
+
+		tiempo_total = 0.0f;
+		tiempo_computo =  0.0f;
+		tiempo_promedio = 0.0f;
+
+		//Set the varaibles to initiate a run in the code
+		TwAddVarRW(myBar,"Numero de iteraciones (M)",TW_TYPE_UINT32, &M, "label='Numero de iteraciones (M)' group='Opciones de corrida'");
+		TwAddVarRW(myBar,"Intervalo de muestreo (Q)",TW_TYPE_UINT32, &Q, "label='Intervalo de muestreo (Q)' group='Opciones de corrida'");
+		TwAddVarRO(myBar,"Numero de hilos por bloque",TW_TYPE_UINT32, &hilosxbloque, "label='Numero de hilos por bloque' group='Opciones de corrida'");
+		TwAddVarRO(myBar,"Numero de bloques",TW_TYPE_UINT32, &bloques, "label='Numero de bloques' group='Opciones de corrida'");
+		TwAddVarRO(myBar,"Numero total de hilos",TW_TYPE_UINT32, &hilos, "label='Numero total de hilos' group='Opciones de corrida'");
+		TwAddButton(myBar,"Start", pressStart,NULL,"label='Start' group='Opciones de corrida'");
+		TwAddButton(myBar,"Reset", pressClear,NULL,"label='Reset' group='Opciones de corrida'");
 
 		//Set a new variable for the iterations
-		TwAddVarCB(myBar,"Iteracion",TW_TYPE_UINT32, SetVarCallback, GetVarCallback, &iteration, "label='Iteracion' group=Opciones");
+		TwAddVarCB(myBar,"Muestra",TW_TYPE_UINT32, SetVarCallback, GetVarCallback, &iteration, "label='Muestra' group=Transformacion");
 
 		//Set new variables for transormations
+		TwAddVarRO(myBar,"Iteracion",TW_TYPE_UINT32, &m_trans.iteration, "label='Iteracion' group=Transformacion");
+		TwAddVarRO(myBar,"Intersecto",TW_TYPE_BOOLCPP, &m_trans.intersection, "label='Intersecto' group=Transformacion");
 		TwAddVarRO(myBar,"Translacion en X",TW_TYPE_FLOAT, &m_trans.m_fTranslationx, "label='Translacion en X' group=Transformacion");
 		TwAddVarRO(myBar,"Translacion en Y",TW_TYPE_FLOAT, &m_trans.m_fTranslationy, "label='Translacion en Y' group=Transformacion");
 		TwAddVarRO(myBar,"Translacion en Z",TW_TYPE_FLOAT, &m_trans.m_fTranslationz, "label='Translacion en Z' group=Transformacion");
@@ -300,15 +408,18 @@ namespace glfwFunc
 		TwAddVarRO(myBar,"Angulo de rotacion",TW_TYPE_FLOAT, &m_trans.m_fRotationAngle, "label='Angulo de Rotacion' group=Transformacion");
 		TwAddVarRO(myBar,"Eje de rotacion",TW_TYPE_DIR3F, &m_trans.m_fRotationVectorx, "label='Eje de rotacion' group=Transformacion");
 
+		//Set the variables for the execution time
+		TwAddVarRO(myBar,"Total",TW_TYPE_FLOAT, &tiempo_total, "label='Total' group='Tiempo de ejecucion'");
+		TwAddVarRO(myBar,"Computo",TW_TYPE_FLOAT, &tiempo_computo, "label='Computo' group='Tiempo de ejecucion'");
+		TwAddVarRO(myBar,"Por iteracion",TW_TYPE_FLOAT, &tiempo_promedio, "label='Por iteracion' group='Tiempo de ejecucion'");
+
 		//Define a exit button
 		TwAddButton(myBar,"Salir", pressExit,NULL,"label='Salir' group=Archivo");
 
-		//Ser the min and the max in the range of the iteration number
+		//Set the min and the max in the range of the iteration number
 		iteration = 0;
-		TwSetParam(myBar, "Iteracion", "min", TW_PARAM_INT32, 1, &iteration);
-		iteration = m_vTransformation.size();
-		m_trans = m_vTransformation[iteration - 1];
-		TwSetParam(myBar, "Iteracion", "max", TW_PARAM_INT32, 1, &iteration);
+		TwSetParam(myBar, "Muestra", "min", TW_PARAM_INT32, 1, &iteration);
+		TwSetParam(myBar, "Muestra", "max", TW_PARAM_INT32, 1, &iteration);
 		
 		//Set the callbacks!!!
 		glfwSetKeyCallback(glfwFunc::glfwWindow, glfwFunc::keyboardCB);
@@ -327,6 +438,7 @@ namespace glfwFunc
 	{
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		//glClearColor(0.94f, 0.94f, 0.94f, 0.f);
+		//glClearColor(0.25f, 0.25f, 0.25f, 0.f);
 		glClearColor(0.54f, 0.54f, 0.54f, 0.f);
 		mModelViewMatrix = glm::translate(glm::mat4(), glm::vec3(0, 0, -6.f)) * m_arcball.GetTransformation();
 
@@ -353,24 +465,64 @@ namespace glfwFunc
 							glm::mat4();
 		}
 		
+
+		m_bgprogram.enable();
+		{
+			glDisable(GL_DEPTH_TEST);
+			glUniformMatrix4fv(m_bgprogram.getLocation("mProjection"), 1, GL_FALSE, glm::value_ptr(m_matOrtho));
+			quad->Draw();
+			glEnable(GL_DEPTH_TEST);
+		}
+		m_bgprogram.disable();
+
 		m_program.enable();
+		{
 			glUniformMatrix4fv(m_program.getLocation("mProjection"), 1, GL_FALSE, glm::value_ptr(mProjMatrix));
 			mModelViewMatrix = glm::translate(glm::mat4(), glm::vec3(0, 0, -6.f)) * glm::scale(glm::mat4(), glm::vec3(0.6, 0.6, 0.6)) * m_arcball.GetTransformation();
-			glUniformMatrix4fv(m_program.getLocation("mModelView"), 1, GL_FALSE, glm::value_ptr(mModelViewMatrix * mCTransfor));
+			//glUniformMatrix4fv(m_program.getLocation("mModelView"), 1, GL_FALSE, glm::value_ptr(mModelViewMatrix));
+
+			/*if(m_vTransformation.size() != 0 && iteration != 0 && iteration <= m_vTransformation .size() && m_vTransformation[iteration - 1].intersection)
+			{
+				glDisable(GL_CULL_FACE);
+				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+				glLineWidth(1.0);
+				glUniform4fv(m_program.getLocation("vec4Color"), 1, glm::value_ptr(GREEN));
+				m_model.drawTriangleObject(m_vTransformation[iteration - 1].triID);
+				cout<<m_vTransformation[iteration - 1].triID<<endl;
+				glEnable(GL_CULL_FACE);
+			}*/
+			
+			//ModelView for the cone
+			glm::mat4 mataux = mModelViewMatrix * mCTransfor;
+			
+			glUniformMatrix4fv(m_program.getLocation("mModelView"), 1, GL_FALSE, glm::value_ptr(mataux));
+			mataux = glm::inverse(mataux);
+			glm::vec4 auxEye = mataux * glm::vec4(eye, 1.0f), auxLightdir = mataux * glm::vec4(lightdir, 0.0f);
 
 			glUniform4fv(m_program.getLocation("vec4Color"), 1, glm::value_ptr(m_vec4ColorC));
+			glUniform3fv(m_program.getLocation("vec3Eye"), 1, glm::value_ptr(auxEye));
+			glUniform3fv(m_program.getLocation("vec3Lightdir"), 1, glm::value_ptr(auxLightdir));
 			m_cone.drawObject();
 			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 			glPolygonOffset(1, 1);
-			glLineWidth(2.0f);
+			glLineWidth(3.0f);
 			glUniform4fv(m_program.getLocation("vec4Color"), 1, glm::value_ptr(BLACK));
 			m_cone.drawObject();
+			
+			//Reset modelview
 			glUniformMatrix4fv(m_program.getLocation("mModelView"), 1, GL_FALSE, glm::value_ptr(mModelViewMatrix));
+			mataux = glm::inverse(mModelViewMatrix);
+			auxEye = mataux * glm::vec4(eye, 1.0f);
+			auxLightdir = mataux * glm::vec4(lightdir, 0.0f);
+
+			glUniform4fv(m_program.getLocation("vec4Color"), 1, glm::value_ptr(m_vec4ColorAB));
+			glUniform3fv(m_program.getLocation("vec3Eye"), 1, glm::value_ptr(auxEye));
+			glUniform3fv(m_program.getLocation("vec3Lightdir"), 1, glm::value_ptr(auxLightdir));
+
 			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 			glLineWidth(1.0);
-			glUniform4fv(m_program.getLocation("vec4Color"), 1, glm::value_ptr(m_vec4ColorAB));
-			m_model.drawObject();
-			
+			m_model.drawObject();	
+		}
 		m_program.disable();
 
 
@@ -383,10 +535,12 @@ namespace glfwFunc
 	/// Here all data must be destroyed + glfwTerminate
 	void destroy()
 	{
+		c.Destroy();
 		m_model.deleteBuffers();
 		m_cone.deleteBuffers();
 		glfwDestroyWindow(glfwFunc::glfwWindow);
 		glfwTerminate();
+		delete quad;
 	}
 };
 

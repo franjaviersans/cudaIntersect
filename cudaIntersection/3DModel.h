@@ -7,6 +7,14 @@
 #include "GLSLProgram.h"
 #include "rply.h"
 
+
+struct PlaneEq
+{
+	float x;
+	float y;
+	float z;
+	float w;
+};
 struct Vertex
 {
 	float x;
@@ -34,6 +42,8 @@ private:
 	static std::vector<Mesh> m_vMesh;
 	std::vector<Vertex> m_vLocalVertex;
 	std::vector<Mesh> m_vLocalMesh;
+	std::vector<PlaneEq> m_vLocalNormal;
+	std::vector<Vertex> m_vLocalNormalVertex;
 	unsigned int m_uVBO;
 	unsigned int m_uVBOIndex;
 	int m_iNPoints;
@@ -59,6 +69,9 @@ public:
 	///Draw the object using the VAO
 	void drawObject();
 
+	/// Method to draw only a triangle of the object
+	void drawTriangleObject(unsigned int);
+
 	///Get the center of the object
 	inline glm::vec3 getCenter(){return m_bbox.getCenter();}
 
@@ -70,5 +83,8 @@ public:
 
 	///Get the pointer to the data mesh
 	inline std::vector<Mesh> * GetPointerMesh(){return &m_vLocalMesh;}
+
+	///Get the pointer to the normal per triangle
+	inline std::vector<PlaneEq> * GetPointerNormal(){return &m_vLocalNormal;}
 };
 #endif
