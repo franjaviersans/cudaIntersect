@@ -37,6 +37,7 @@ namespace glfwFunc
 	const unsigned int WINDOW_HEIGHT = 650;
 	unsigned int Q;
 	unsigned int M;
+	unsigned int N;
 	unsigned int muestras;
 	float tiempo_total;
 	float tiempo_computo;
@@ -94,18 +95,22 @@ namespace glfwFunc
 			
 			bool finish = true;
 
+			unsigned int intersections[MAX_N];
+			float scalars[MAX_N];
+
 			//Do M iterations to test the data
 			for(i = 0;i < M /*&& finish*/;++i)
 			{
 				Transformation t;
-	
-				finish = c.CudaIntercept(total_time, &t);
+				
+				
+				finish = c.CudaIntercept(total_time, scalars, intersections, N, t);
 
 				t.iteration = i;
 				t.intersection = finish;
 
 				if(Q < M && i % Q == 0) m_vTransformation.push_back(t);
-				else if(Q >= M && i == M - 1 ) m_vTransformation.push_back(t);
+				else if(Q >= M && i == M - 1 ) m_vTransformation.push_back(t);				
 			}
 
 			//Print the total GPUtime of execution
@@ -388,6 +393,7 @@ namespace glfwFunc
 
 		//Set the varaibles to initiate a run in the code
 		TwAddVarRW(myBar,"Numero de iteraciones (M)",TW_TYPE_UINT32, &M, "label='Numero de iteraciones (M)' group='Opciones de corrida'");
+		TwAddVarRW(myBar,"Numero de transformaciones (N)",TW_TYPE_UINT32, &N, "label='Numero de transformaciones (N)' group='Opciones de corrida'");
 		TwAddVarRW(myBar,"Intervalo de muestreo (Q)",TW_TYPE_UINT32, &Q, "label='Intervalo de muestreo (Q)' group='Opciones de corrida'");
 		TwAddVarRO(myBar,"Numero de hilos por bloque",TW_TYPE_UINT32, &hilosxbloque, "label='Numero de hilos por bloque' group='Opciones de corrida'");
 		TwAddVarRO(myBar,"Numero de bloques",TW_TYPE_UINT32, &bloques, "label='Numero de bloques' group='Opciones de corrida'");
@@ -400,7 +406,7 @@ namespace glfwFunc
 
 		//Set new variables for transormations
 		TwAddVarRO(myBar,"Iteracion",TW_TYPE_UINT32, &m_trans.iteration, "label='Iteracion' group=Transformacion");
-		TwAddVarRO(myBar,"Intersecto",TW_TYPE_BOOLCPP, &m_trans.intersection, "label='Intersecto' group=Transformacion");
+		TwAddVarRO(myBar,"Solucion",TW_TYPE_BOOLCPP, &m_trans.intersection, "label='Solucion' group=Transformacion");
 		TwAddVarRO(myBar,"Translacion en X",TW_TYPE_FLOAT, &m_trans.m_fTranslationx, "label='Translacion en X' group=Transformacion");
 		TwAddVarRO(myBar,"Translacion en Y",TW_TYPE_FLOAT, &m_trans.m_fTranslationy, "label='Translacion en Y' group=Transformacion");
 		TwAddVarRO(myBar,"Translacion en Z",TW_TYPE_FLOAT, &m_trans.m_fTranslationz, "label='Translacion en Z' group=Transformacion");
@@ -420,6 +426,18 @@ namespace glfwFunc
 		iteration = 0;
 		TwSetParam(myBar, "Muestra", "min", TW_PARAM_INT32, 1, &iteration);
 		TwSetParam(myBar, "Muestra", "max", TW_PARAM_INT32, 1, &iteration);
+
+		M = 0;
+		TwSetParam(myBar, "Numero de iteraciones (M)", "min", TW_PARAM_INT32, 1, &M);
+		M = MAX_M;
+		TwSetParam(myBar, "Numero de iteraciones (M)", "max", TW_PARAM_INT32, 1, &M);
+		M = 2000;
+
+		N = 0;
+		TwSetParam(myBar, "Numero de transformaciones (N)", "min", TW_PARAM_INT32, 1, &N);
+		N = MAX_N;
+		TwSetParam(myBar, "Numero de transformaciones (N)", "max", TW_PARAM_INT32, 1, &N);
+		N = 500;
 		
 		//Set the callbacks!!!
 		glfwSetKeyCallback(glfwFunc::glfwWindow, glfwFunc::keyboardCB);

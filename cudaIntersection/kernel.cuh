@@ -17,8 +17,14 @@ using std::vector;
 //#define ALLTRUE
 //#define ALLTEST
 
-#define N 800
+#define MAX_M 2000
+#define MAX_N 1500
 
+
+struct mat44
+{
+	float data[16];
+};
 
 class CUDA{
 private:
@@ -27,11 +33,9 @@ private:
 	float3 * d_A;
 	float4 * d_Normal;
 	uint3 * d_B;
-	unsigned int * d_triID;
-	unsigned int * d_originID;
-	unsigned int * d_destID;
-	float * d_x;
+	mat44 * d_x, * h_x;
 	unsigned int * d_inter;
+	unsigned int * h_inter;
 	int sizeA, sizeB, sizeC, sizeN;
 	float m_transX, m_transY, m_transZ; 
 
@@ -39,7 +43,7 @@ public:
 	unsigned int block, threads, threadsxblock;
 	__host__ void Init(float3 * A, uint3 * B, float4 * Normal, float3 * C, unsigned int sA, unsigned int sB, unsigned int sN, unsigned int sC);
 	__host__ void Destroy();
-	__host__ bool CudaIntercept(float &time, Transformation *);
+	__host__ bool CudaIntercept(float &time, float *out_trans, unsigned int * out_inter, unsigned int N, Transformation &t);
 };
 
 
