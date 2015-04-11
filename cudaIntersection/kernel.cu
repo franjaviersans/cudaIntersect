@@ -75,6 +75,7 @@ __global__ void Intercept(const float3 * const p1, const float3 * const p2,
 	//Id of the thread within a block and within the grid
 	unsigned int tid = threadIdx.x;
 	unsigned int globalTid = blockDim.x * blockIdx.x + threadIdx.x, temp;
+	unsigned int Start = blockIdx.y * N / gridDim.y, End = Start +  N / gridDim.y;
 
 	//Auxiliar variables
 	float3 v0, v1, v2, vaux1, vaux2;
@@ -112,7 +113,8 @@ __global__ void Intercept(const float3 * const p1, const float3 * const p2,
 
 
 		unsigned int j;
-		for(j = 0; j < N; ++j){
+
+		for(j = Start; j < End + 1; ++j){
 			if(globalinter[j] == 0) //Only check if no intersection have been found
 			{ 
 				if(tid == 0) //if it is the first thread of the block
@@ -228,7 +230,7 @@ bool CUDA::CudaIntercept(float &time, float *out_scalar, unsigned int * out_inte
 
 	//Each thread for each triangle
 	dim3 BlockDim(threadsxblock, 1, 1); //128 threads per block
-	dim3 GridDim(block, 1, 1); 
+	dim3 GridDim(block, 200, 1); 
 
 	//First test with timer
 	timer.Start();
