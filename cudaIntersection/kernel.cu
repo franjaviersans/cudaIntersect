@@ -75,7 +75,7 @@ __global__ void Intercept(const float3 * const p1, const float3 * const p2,
 	//Id of the thread within a block and within the grid
 	unsigned int tid = threadIdx.x;
 	unsigned int globalTid = blockDim.x * blockIdx.x + threadIdx.x, temp;
-	unsigned int Start = blockIdx.y * N / gridDim.y, End = Start +  N / gridDim.y;
+	unsigned int idN;
 
 	//Auxiliar variables
 	float3 v0, v1, v2, vaux1, vaux2;
@@ -84,7 +84,7 @@ __global__ void Intercept(const float3 * const p1, const float3 * const p2,
 	bool inter = false;
 	uint3 id;
 	
-	if(globalTid < sizeB) //Each thread works with one triangle in the surface (A, B)
+	if(globalTid < sizeB && blockIdx.y < N) //Each thread works with one triangle in the surface (A, B)
 	{
 
 		n = normal[globalTid]; //n have the plane equation of the triangle
@@ -112,27 +112,26 @@ __global__ void Intercept(const float3 * const p1, const float3 * const p2,
 		__syncthreads(); //Wait to all the threads in the block
 
 
-		unsigned int j;
-
-		for(j = Start; j < End + 1; ++j){
-			if(globalinter[j] == 0) //Only check if no intersection have been found
+		idN = blockIdx.y;
+		while (idN < N){
+			if(globalinter[idN] == 0) //Only check if no intersection have been found
 			{ 
 				if(tid == 0) //if it is the first thread of the block
 				{
-					MULT((*originTransformed), x[j].data, (*origin)); //Transfor the point. This is the only transformation done with global transformation data!!!
+					MULT((*originTransformed), x[idN].data, (*origin)); //Transfor the point. This is the only transformation done with global transformation data!!!
 				}
 
 				temp = tid;
 				while(temp < 16) //16 values of the 4x4 transformation matrix
 				{
-					lt[temp] = x[j].data[temp]; 
+					lt[temp] = x[idN].data[temp]; 
 					temp += blockDim.x;
 					
 				}
 			}
 			__syncthreads(); //Wait to all the threads in the block
 
-			if(globalinter[j] == 0) //Only check if no intersection have been found
+			if(globalinter[idN] == 0) //Only check if no intersection have been found
 			{ 
 				//Transform all the points in C
 				temp = tid;
@@ -155,13 +154,13 @@ __global__ void Intercept(const float3 * const p1, const float3 * const p2,
 			__syncthreads(); //Wait to all the threads in the block
 
 			//Test 1, check if the center of C is inside the surface of (A,B)
-			if(globalinter[j] == 0) //Only excetue if no intersection have been found
+			if(globalinter[idN] == 0) //Only excetue if no intersection have been found
 			{
 				res = DOT(n, (*originTransformed));
 
 				if(res + n.w > 0.0f) //Check if the point is "in front" of the triangle
 				{
-					globalinter[j] = 1;
+					globalinter[idN] = 1;
 				}
 
 			}
@@ -170,11 +169,13 @@ __global__ void Intercept(const float3 * const p1, const float3 * const p2,
 			//Test 2, ray-triangle intersection test, to check if object C is inside (A,B)
 			unsigned int i;
 			//Only execute if no intersection have been found
-			for(i = 1; i < sizeC && globalinter[j] == 0; ++i)  //For all the points in C do the intersection test
+			for(i = 1; i < sizeC && globalinter[idN] == 0; ++i)  //For all the points in C do the intersection test
 			{
 				inter = ray_triangle(v0, v1, v2, (*originTransformed), dir[i]); //Intersection function with the 3 points of the triangle, the origin, and the ith direction
-				if(inter) globalinter[j] = 1;
+				if(inter) globalinter[idN] = 1;
 			}	
+
+			idN += gridDim.y;
 		}
 	}
 }
@@ -230,7 +231,7 @@ bool CUDA::CudaIntercept(float &time, float *out_scalar, unsigned int * out_inte
 
 	//Each thread for each triangle
 	dim3 BlockDim(threadsxblock, 1, 1); //128 threads per block
-	dim3 GridDim(block, 200, 1); 
+	dim3 GridDim(block, 2, 1); 
 
 	//First test with timer
 	timer.Start();
@@ -281,6 +282,8 @@ __host__ void CUDA::Init(float3 * A, uint3 * B, float4 * Normal, float3 * C, uns
 		printf("Surface C cannot be stored in shared memory. Other approach should be use\n");
 		exit(0);
 	}
+
+	
 
 	sizeA = sA;
 	sizeB = sB;
