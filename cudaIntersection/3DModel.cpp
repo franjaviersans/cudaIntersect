@@ -114,7 +114,7 @@ bool C3DModel::load(const std::string & sFilename)
 
 	m_vLocalNormalVertex.resize(m_iNPoints);
 
-	for(unsigned int j=0; j < m_iNPoints; ++j) m_vLocalNormalVertex[j].x = 0.0f, m_vLocalNormalVertex[j].y = 0.0f, m_vLocalNormalVertex[j].z = 0.0f;
+	for(int j=0; j < m_iNPoints; ++j) m_vLocalNormalVertex[j].x = 0.0f, m_vLocalNormalVertex[j].y = 0.0f, m_vLocalNormalVertex[j].z = 0.0f;
 
 	Vertex A, B, C, BA, CA;
 	PlaneEq t;
