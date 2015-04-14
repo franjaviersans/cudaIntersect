@@ -222,12 +222,12 @@ bool CUDA::CudaIntercept(float &time, float *out_scalar, unsigned int * out_inte
 	}
 
 	//Set the intersection to false
-	memset(h_inter, 0, N * sizeof(unsigned int));
+	memset(out_inter, 0, N * sizeof(unsigned int));
 	
 
 	//Copy the information of the transform an the global itersection boolean
 	checkCudaErrors(cudaMemcpy(d_x, h_x, sizeof(mat44) * N, cudaMemcpyHostToDevice));
-	checkCudaErrors(cudaMemcpy(d_inter, h_inter,  sizeof(unsigned int) * N, cudaMemcpyHostToDevice));
+	checkCudaErrors(cudaMemcpy(d_inter, out_inter,  sizeof(unsigned int) * N, cudaMemcpyHostToDevice));
 
 	//Each thread for each triangle
 	dim3 BlockDim(threadsxblock, 1, 1); //128 threads per block
@@ -242,9 +242,7 @@ bool CUDA::CudaIntercept(float &time, float *out_scalar, unsigned int * out_inte
 	time += timer.Elapsed();
 	cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError()); //Check for errors
 
-	checkCudaErrors(cudaMemcpy(h_inter, d_inter,  sizeof(unsigned int) * N, cudaMemcpyDeviceToHost)); //Copy the GPU global intersection variable to know if there was an intersection
-	
-	memcpy(out_inter, h_inter, sizeof(unsigned int) * N); //Store the intersection 
+	checkCudaErrors(cudaMemcpy(out_inter, d_inter,  sizeof(unsigned int) * N, cudaMemcpyDeviceToHost)); //Copy the GPU global intersection variable to know if there was an intersection
 
 	bool solution = false;
 
@@ -268,7 +266,7 @@ bool CUDA::CudaIntercept(float &time, float *out_scalar, unsigned int * out_inte
 }
 
 //Function to copy all the geometry information into the GPU
-__host__ void CUDA::Init(float3 * A, uint3 * B, float4 * Normal, float3 * C, unsigned int sA, unsigned int sB, unsigned int sN, unsigned int sC){
+__host__ void CUDA::InitOld(float3 * A, uint3 * B, float4 * Normal, float3 * C, unsigned int sA, unsigned int sB, unsigned int sN, unsigned int sC){
 
 	//Check if object C can be stored in shared memory
 	cudaDeviceProp prop;
@@ -311,7 +309,6 @@ __host__ void CUDA::Init(float3 * A, uint3 * B, float4 * Normal, float3 * C, uns
 	checkCudaErrors(cudaMalloc((void**)&d_x, sizeof(mat44) * MAX_N));
 	
 	h_x = new mat44 [MAX_N];
-	h_inter = new unsigned int [MAX_N];
 
 	
 	//Send information to the GPU
@@ -321,6 +318,83 @@ __host__ void CUDA::Init(float3 * A, uint3 * B, float4 * Normal, float3 * C, uns
 	checkCudaErrors(cudaMemcpy(d_B, B, sizeB * sizeof(uint3), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_Normal, Normal, sizeN * sizeof(float4), cudaMemcpyHostToDevice));
 
+
+	//Move the point p1 to center
+	m_transX = -C[0].x;
+	m_transY = -C[0].y;
+	m_transZ = -C[0].z;
+}
+
+//Function to copy all the geometry information into the GPU
+__host__ void CUDA::Init(float3 * A, uint3 * B, float4 * Normal, float3 * C, unsigned int sA, unsigned int sB, unsigned int sN, unsigned int sC){
+
+	//Check if object C can be stored in shared memory
+	cudaDeviceProp prop;
+
+	checkCudaErrors(cudaSetDevice(0));
+
+	checkCudaErrors( cudaGetDeviceProperties( &prop, 0 ) );
+
+	if(prop.sharedMemPerBlock < sC * sizeof(float3) * 2 + sizeof(float3) * 2 + sizeof(bool) + 16 *sizeof(float))
+	{
+		printf("Surface C cannot be stored in shared memory. Other approach should be use\n");
+		exit(0);
+	}
+
+	//Copy the data to reorder and duplicate points
+	
+	float3 * newA = new float3[sB * 3];
+
+	for(unsigned int i = 0, j = 0; i < sB; ++i)
+	{
+		uint3 id = B[i]; //Triangle
+		
+		B[i].x = j;
+		newA[j] = A[id.x]; //Point 0
+		++j;
+		B[i].y = j;
+		newA[j] = A[id.y]; //Point 1
+		++j;
+		B[i].z = j;
+		newA[j] = A[id.z]; //Point 2
+		++j;
+	}
+
+
+	sizeA = sB * 3;
+	sizeB = sB;
+	sizeC = sC;
+	sizeN = sN;
+
+
+	threadsxblock = 128;
+	block = (sizeB + threadsxblock)/threadsxblock;
+	threads = threadsxblock * block;
+	
+
+	/* initialize random seed: */
+	srand (unsigned int(time(NULL)));
+
+	//Allocate memory on the GPU
+	checkCudaErrors(cudaMalloc((void**)&d_p1, sizeof(float3)));
+	checkCudaErrors(cudaMalloc((void**)&d_p2, sizeC * sizeof(float3)));
+	checkCudaErrors(cudaMalloc((void**)&d_A, sizeA * sizeof(float3)));
+	checkCudaErrors(cudaMalloc((void**)&d_B, sizeB * sizeof(uint3)));
+	checkCudaErrors(cudaMalloc((void**)&d_Normal, sizeN * sizeof(float4)));
+	checkCudaErrors(cudaMalloc((void**)&d_inter, sizeof(unsigned int ) * MAX_N));
+	checkCudaErrors(cudaMalloc((void**)&d_x, sizeof(mat44) * MAX_N));
+	
+	h_x = new mat44 [MAX_N];
+
+	//Send information to the GPU
+	checkCudaErrors(cudaMemcpy(d_p1, C, sizeof(float3), cudaMemcpyHostToDevice));
+	checkCudaErrors(cudaMemcpy(d_p2, C, sizeC * sizeof(float3), cudaMemcpyHostToDevice));
+	checkCudaErrors(cudaMemcpy(d_A, newA, sizeA * sizeof(float3), cudaMemcpyHostToDevice));
+	checkCudaErrors(cudaMemcpy(d_B, B, sizeB * sizeof(uint3), cudaMemcpyHostToDevice));
+	checkCudaErrors(cudaMemcpy(d_Normal, Normal, sizeN * sizeof(float4), cudaMemcpyHostToDevice));
+
+
+	delete newA;
 
 	//Move the point p1 to center
 	m_transX = -C[0].x;
@@ -339,5 +413,4 @@ __host__ void CUDA::Destroy(){
 	checkCudaErrors(cudaFree(d_x));
 	checkCudaErrors(cudaFree(d_inter));
 	delete [] h_x;
-	delete [] h_inter;
 }
