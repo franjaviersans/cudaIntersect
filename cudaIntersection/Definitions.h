@@ -21,7 +21,7 @@
 #define GLFW_DLL
 #include "include/GL/glew.h"
 
-#define EPSILON 0.000001
+#define EPSILON 0.000001f
 #define CROSS(dest, v1, v2) \
 	dest.x = v1.y*v2.z - v1.z*v2.y; \
 	dest.y = v1.z*v2.x - v1.x*v2.z; \

@@ -38,11 +38,15 @@ namespace glfwFunc
 	unsigned int Q;
 	unsigned int M;
 	unsigned int N;
+	unsigned int gridX;
+	unsigned int gridY = 5;
+	unsigned int gridZ = 5;
+	unsigned int blockX = 512;
 	unsigned int muestras;
 	float tiempo_total;
 	float tiempo_computo;
 	float tiempo_promedio;
-	unsigned int bloques, hilos, hilosxbloque;
+	unsigned int hilos, hilosxbloque;
 	const float NCP = 0.01f;
 	const float FCP = 52.f;
 	const float fAngle = 45.f;
@@ -104,7 +108,7 @@ namespace glfwFunc
 				Transformation t;
 				
 				
-				finish = c.CudaIntercept(total_time, scalars, intersections, N, t);
+				finish = c.CudaIntercept(total_time, scalars, intersections, N, t, gridX, gridY, gridZ, blockX);
 
 				t.iteration = i;
 				t.intersection = finish;
@@ -207,6 +211,17 @@ namespace glfwFunc
 		((int*) value)[0] = iteration;
 	}
 
+	//Con esta funcion se puede obtener el valor 
+	void TW_CALL SetVarCallback2(const void *value, void *clientData)
+	{
+		blockX = ((const int *)value)[0]; 
+		gridX = (m_model.GetPointerMesh()->size() + blockX)/blockX;
+	}
+
+	void TW_CALL GetVarCallback2(void *value, void *clientData)
+	{
+		((int*) value)[0] = blockX;
+	}
 
 	///< Callback function used by GLFW to capture some possible error.
 	void errorCB(int error, const char* description)
@@ -369,9 +384,6 @@ namespace glfwFunc
 		Q = 10;
 		M = 2000;
 
-		bloques = 0; 
-		hilos = 0;
-		hilosxbloque = 0;
 		#ifdef CUDA_CODE
 			//Pass the data to GPU
 			c.Init((float3 *)((m_model.GetPointerData())->data()), 
@@ -382,9 +394,6 @@ namespace glfwFunc
 									(m_model.GetPointerMesh())->size(),
 									(m_model.GetPointerNormal())->size(),
 									(m_cone.GetPointerData())->size());
-			bloques = c.block;
-			hilos = c.threads;
-			hilosxbloque = c.threadsxblock;
 		#endif
 
 		tiempo_total = 0.0f;
@@ -395,9 +404,11 @@ namespace glfwFunc
 		TwAddVarRW(myBar,"Numero de iteraciones (M)",TW_TYPE_UINT32, &M, "label='Numero de iteraciones (M)' group='Opciones de corrida'");
 		TwAddVarRW(myBar,"Numero de transformaciones (N)",TW_TYPE_UINT32, &N, "label='Numero de transformaciones (N)' group='Opciones de corrida'");
 		TwAddVarRW(myBar,"Intervalo de muestreo (Q)",TW_TYPE_UINT32, &Q, "label='Intervalo de muestreo (Q)' group='Opciones de corrida'");
-		TwAddVarRO(myBar,"Numero de hilos por bloque",TW_TYPE_UINT32, &hilosxbloque, "label='Numero de hilos por bloque' group='Opciones de corrida'");
-		TwAddVarRO(myBar,"Numero de bloques",TW_TYPE_UINT32, &bloques, "label='Numero de bloques' group='Opciones de corrida'");
-		TwAddVarRO(myBar,"Numero total de hilos",TW_TYPE_UINT32, &hilos, "label='Numero total de hilos' group='Opciones de corrida'");
+		TwAddVarCB(myBar,"Block Dimension X",TW_TYPE_UINT32, SetVarCallback2, GetVarCallback2, &blockX, "label='Block Dimension X' group='Opciones de corrida'");
+		gridX = (m_model.GetPointerMesh()->size() + blockX)/blockX;
+		TwAddVarRO(myBar,"Grid Dimension X",TW_TYPE_UINT32, &gridX, "label='Grid Dimension X' group='Opciones de corrida'");
+		TwAddVarRW(myBar,"Grid Dimension Y",TW_TYPE_UINT32, &gridY, "label='Grid Dimension Y' group='Opciones de corrida'");
+		TwAddVarRW(myBar,"Grid Dimension Z",TW_TYPE_UINT32, &gridZ, "label='Grid Dimension Z' group='Opciones de corrida'");
 		TwAddButton(myBar,"Start", pressStart,NULL,"label='Start' group='Opciones de corrida'");
 		TwAddButton(myBar,"Reset", pressClear,NULL,"label='Reset' group='Opciones de corrida'");
 

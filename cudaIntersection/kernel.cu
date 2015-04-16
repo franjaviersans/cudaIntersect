@@ -52,8 +52,68 @@ __device__ bool ray_triangle( const float3 V1,  // Triangle vertices
 	return false;
 }
 
+__global__ void checkCenter(	const float3 * const p1, 
+						const float4 * const normal,
+						const unsigned int sizeB,
+						const unsigned int N,
+						const mat44 * const x,
+						unsigned int * globalinter)
+{
+	//Shared memory declaration
+	extern __shared__ char buffer[];
+
+	//All point of C will be stored in the array dir in shared memory
+	float3 * origin = (float3 *)&buffer[0]; //Normals in shared memory
+	float3 * originTransformed = (float3 *)&buffer[sizeof(float3)]; //Normals in shared memory
+
+	//Id of the thread within a block and within the grid
+	unsigned int tid = threadIdx.x;
+	unsigned int globalTid = blockDim.x * blockIdx.x + threadIdx.x;
+	unsigned int idN;
+
+	//Auxiliar variables
+	if(globalTid < sizeB && blockIdx.z < N) //Each thread works with one triangle in the surface (A, B)
+	{
+
+		float4 n = normal[globalTid]; //n have the plane equation of the triangle
+
+
+
+		if(tid == 0) //if it is the first thread of the block
+		{
+			*origin = *p1; //Copy the data of the origin of the ray
+		}
+		__syncthreads(); //Wait to all the threads in the block
+
+
+		idN = blockIdx.z;
+		while (idN < N){
+			if(globalinter[idN] == 0) //Only check if no intersection have been found
+			{ 
+				if(tid == 0) //if it is the first thread of the block
+				{
+					MULT((*originTransformed), x[idN].data, (*origin)); //Transfor the point. This is the only transformation done with global transformation data!!!
+				}
+			}
+			__syncthreads(); //Wait to all the threads in the block
+
+			//Test 1, check if the center of C is inside the surface of (A,B)
+			if(globalinter[idN] == 0) //Only excetue if no intersection have been found
+			{
+				if(DOT(n, (*originTransformed)) + n.w > 0.0f) //Check if the point is "in front" of the triangle
+				{
+					globalinter[idN] = 1;
+				}
+			}
+
+			idN += gridDim.z;
+		}
+	}
+
+}
+
 __global__ void Intercept(const float3 * const p1, const float3 * const p2,
-			   const float3 * const A, const uint3 * const B, const float4 * const normal,
+			   const float3 * const A, const uint3 * const B,
 			   const unsigned int sizeC, const unsigned int sizeA,
 			   const unsigned int sizeB, 
 			   const mat44 * const x,
@@ -70,7 +130,6 @@ __global__ void Intercept(const float3 * const p1, const float3 * const p2,
     float3 * origin = (float3 *)&buffer[sizeC * sizeof(float3) * 2]; //The origin will be shared to
 	float3 * originTransformed = (float3 *)&buffer[sizeC * sizeof(float3) * 2 + sizeof(float3)]; //The origin will be shared to
 	float * lt = (float *)&buffer[sizeC * sizeof(float3) * 2 + sizeof(float3) * 2]; //The shared transformation matrix
-	bool * sharedinter = (bool *)&buffer[sizeC * sizeof(float3) * 2 + sizeof(float3) * 2 + sizeof(mat44)]; //A boolean to know if the test has to stop
 
 	//Id of the thread within a block and within the grid
 	unsigned int tid = threadIdx.x;
@@ -79,20 +138,13 @@ __global__ void Intercept(const float3 * const p1, const float3 * const p2,
 
 	//Auxiliar variables
 	float3 v0, v1, v2, vaux1, vaux2;
-	float4 n;
-	float res;
-	bool inter = false;
 	uint3 id;
 	
-	if(globalTid < sizeB && blockIdx.y < N) //Each thread works with one triangle in the surface (A, B)
+	if(globalTid < sizeB && blockIdx.z < N) //Each thread works with one triangle in the surface (A, B)
 	{
-
-		n = normal[globalTid]; //n have the plane equation of the triangle
-		id = B[globalTid]; //Store the points of the triangles in local memory
-		
-		v0 = A[id.x]; //Point 0
-		v1 = A[id.y]; //Point 1
-		v2 = A[id.z]; //Point 2
+		v0 = A[globalTid * 3]; //Point 0
+		v1 = A[globalTid * 3 + 1]; //Point 1
+		v2 = A[globalTid * 3 + 2]; //Point 2
 
 
 		if(tid == 0) //if it is the first thread of the block
@@ -112,7 +164,7 @@ __global__ void Intercept(const float3 * const p1, const float3 * const p2,
 		__syncthreads(); //Wait to all the threads in the block
 
 
-		idN = blockIdx.y;
+		idN = blockIdx.z;
 		while (idN < N){
 			if(globalinter[idN] == 0) //Only check if no intersection have been found
 			{ 
@@ -134,8 +186,8 @@ __global__ void Intercept(const float3 * const p1, const float3 * const p2,
 			if(globalinter[idN] == 0) //Only check if no intersection have been found
 			{ 
 				//Transform all the points in C
-				temp = tid;
-				while(temp < sizeC)
+				temp = tid + blockIdx.y * (sizeC / gridDim.y);
+				while(temp < (blockIdx.y + 1) * (sizeC / gridDim.y))
 				{
 					//Copy a point of C to local data
 					vaux1 = sharedP2[temp];
@@ -152,35 +204,22 @@ __global__ void Intercept(const float3 * const p1, const float3 * const p2,
 				}
 			}
 			__syncthreads(); //Wait to all the threads in the block
-
-			//Test 1, check if the center of C is inside the surface of (A,B)
-			if(globalinter[idN] == 0) //Only excetue if no intersection have been found
-			{
-				res = DOT(n, (*originTransformed));
-
-				if(res + n.w > 0.0f) //Check if the point is "in front" of the triangle
-				{
-					globalinter[idN] = 1;
-				}
-
-			}
-
 				
 			//Test 2, ray-triangle intersection test, to check if object C is inside (A,B)
 			unsigned int i;
 			//Only execute if no intersection have been found
-			for(i = 1; i < sizeC && globalinter[idN] == 0; ++i)  //For all the points in C do the intersection test
+			for(i = blockIdx.y * (sizeC / gridDim.y); i < sizeC && i < (blockIdx.y + 1) * (sizeC / gridDim.y) && globalinter[idN] == 0; ++i)  //For all the points in C do the intersection test
 			{
-				inter = ray_triangle(v0, v1, v2, (*originTransformed), dir[i]); //Intersection function with the 3 points of the triangle, the origin, and the ith direction
-				if(inter) globalinter[idN] = 1;
+				if(ray_triangle(v0, v1, v2, (*originTransformed), dir[i])) globalinter[idN] = 1;
+				//Intersection function with the 3 points of the triangle, the origin, and the ith direction
 			}	
 
-			idN += gridDim.y;
+			idN += gridDim.z;
 		}
 	}
 }
 
-bool CUDA::CudaIntercept(float &time, float *out_scalar, unsigned int * out_inter, unsigned int N, Transformation &t){
+bool CUDA::CudaIntercept(float &time, float *out_scalar, unsigned int * out_inter, unsigned int N, Transformation &t, unsigned int gridX, unsigned int gridY, unsigned int gridZ, unsigned int blockX){
 	GpuTimer timer;
 
 	Transformation * T = new Transformation[N];
@@ -230,12 +269,12 @@ bool CUDA::CudaIntercept(float &time, float *out_scalar, unsigned int * out_inte
 	checkCudaErrors(cudaMemcpy(d_inter, out_inter,  sizeof(unsigned int) * N, cudaMemcpyHostToDevice));
 
 	//Each thread for each triangle
-	dim3 BlockDim(threadsxblock, 1, 1); //128 threads per block
-	dim3 GridDim(block, 2, 1); 
+	checkCenter<<< dim3(gridX, 1, 2), dim3(blockX, 1, 1), sizeof(float4) * 2>>>(d_p1, d_Normal, sizeB, N, d_x, d_inter);
+	cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError()); //Check for errors;
 
 	//First test with timer
 	timer.Start();
-	Intercept<<< GridDim, BlockDim, sizeC * sizeof(float3) * 2 + sizeof(float3) * 2 + sizeof(bool) + sizeof(mat44) >>>(d_p1, d_p2, d_A, d_B, d_Normal, sizeC, sizeA, sizeB, d_x, N, d_inter);
+	Intercept<<< dim3(gridX, gridY, gridZ), dim3(blockX, 1, 1), sizeC * sizeof(float3) * 2 + sizeof(float3) * 2 + sizeof(mat44) >>>(d_p1, d_p2, d_A, d_B, sizeC, sizeA, sizeB, d_x, N, d_inter);
 	timer.Stop();
 
 
@@ -287,11 +326,6 @@ __host__ void CUDA::InitOld(float3 * A, uint3 * B, float4 * Normal, float3 * C, 
 	sizeB = sB;
 	sizeC = sC;
 	sizeN = sN;
-
-
-	threadsxblock = 128;
-	block = (sizeB + threadsxblock)/threadsxblock;
-	threads = threadsxblock * block;
 	
 
 	/* initialize random seed: */
@@ -363,14 +397,8 @@ __host__ void CUDA::Init(float3 * A, uint3 * B, float4 * Normal, float3 * C, uns
 
 	sizeA = sB * 3;
 	sizeB = sB;
-	sizeC = sC;
+	sizeC = sC - 1;
 	sizeN = sN;
-
-
-	threadsxblock = 128;
-	block = (sizeB + threadsxblock)/threadsxblock;
-	threads = threadsxblock * block;
-	
 
 	/* initialize random seed: */
 	srand (unsigned int(time(NULL)));
@@ -388,7 +416,7 @@ __host__ void CUDA::Init(float3 * A, uint3 * B, float4 * Normal, float3 * C, uns
 
 	//Send information to the GPU
 	checkCudaErrors(cudaMemcpy(d_p1, C, sizeof(float3), cudaMemcpyHostToDevice));
-	checkCudaErrors(cudaMemcpy(d_p2, C, sizeC * sizeof(float3), cudaMemcpyHostToDevice));
+	checkCudaErrors(cudaMemcpy(d_p2, (C + sizeof(float3)), sizeC * sizeof(float3), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_A, newA, sizeA * sizeof(float3), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_B, B, sizeB * sizeof(uint3), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_Normal, Normal, sizeN * sizeof(float4), cudaMemcpyHostToDevice));
@@ -404,6 +432,7 @@ __host__ void CUDA::Init(float3 * A, uint3 * B, float4 * Normal, float3 * C, uns
 
 //Function to free memory
 __host__ void CUDA::Destroy(){
+
 	//Free memory
 	checkCudaErrors(cudaFree(d_p1));
 	checkCudaErrors(cudaFree(d_p2));
@@ -413,4 +442,7 @@ __host__ void CUDA::Destroy(){
 	checkCudaErrors(cudaFree(d_x));
 	checkCudaErrors(cudaFree(d_inter));
 	delete [] h_x;
+
+	printf("Destruyo\n");
+	cudaDeviceReset();
 }
