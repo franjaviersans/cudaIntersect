@@ -30,7 +30,7 @@ class CUDA{
 private:
 	float3 * d_p1;
 	float3 * d_p2;
-	float3 * d_A;
+	float * d_Ax, * d_Ay, * d_Az;
 	float4 * d_Normal;
 	uint3 * d_B;
 	mat44 * d_x, * h_x;

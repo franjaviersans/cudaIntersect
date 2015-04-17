@@ -113,8 +113,8 @@ __global__ void checkCenter(	const float3 * const p1,
 }
 
 __global__ void Intercept(const float3 * const p1, const float3 * const p2,
-			   const float3 * const A, const uint3 * const B,
-			   const unsigned int sizeC, const unsigned int sizeA,
+			   const float * const Ax, const float * const Ay, const float * const Az,
+			   const unsigned int sizeC,
 			   const unsigned int sizeB, 
 			   const mat44 * const x,
 			   const unsigned int N,
@@ -138,13 +138,21 @@ __global__ void Intercept(const float3 * const p1, const float3 * const p2,
 
 	//Auxiliar variables
 	float3 v0, v1, v2, vaux1, vaux2;
-	uint3 id;
 	
 	if(globalTid < sizeB && blockIdx.z < N) //Each thread works with one triangle in the surface (A, B)
 	{
-		v0 = A[globalTid * 3]; //Point 0
-		v1 = A[globalTid * 3 + 1]; //Point 1
-		v2 = A[globalTid * 3 + 2]; //Point 2
+		v0.x = Ax[globalTid]; //Point 0
+		v1.x = Ax[globalTid + sizeB]; //Point 1
+		v2.x = Ax[globalTid + sizeB * 2]; //Point 2
+
+		v0.y = Ay[globalTid]; //Point 0
+		v1.y = Ay[globalTid + sizeB]; //Point 1
+		v2.y = Ay[globalTid + sizeB * 2]; //Point 2
+
+		v0.z = Az[globalTid]; //Point 0
+		v1.z = Az[globalTid + sizeB]; //Point 1
+		v2.z = Az[globalTid + sizeB * 2]; //Point 2
+		
 
 
 		if(tid == 0) //if it is the first thread of the block
@@ -274,7 +282,7 @@ bool CUDA::CudaIntercept(float &time, float *out_scalar, unsigned int * out_inte
 
 	//First test with timer
 	timer.Start();
-	Intercept<<< dim3(gridX, gridY, gridZ), dim3(blockX, 1, 1), sizeC * sizeof(float3) * 2 + sizeof(float3) * 2 + sizeof(mat44) >>>(d_p1, d_p2, d_A, d_B, sizeC, sizeA, sizeB, d_x, N, d_inter);
+	Intercept<<< dim3(gridX, gridY, gridZ), dim3(blockX, 1, 1), sizeC * sizeof(float3) * 2 + sizeof(float3) * 2 + sizeof(mat44) >>>(d_p1, d_p2, d_Ax, d_Ay, d_Az, sizeC, sizeB, d_x, N, d_inter);
 	timer.Stop();
 
 
@@ -308,7 +316,7 @@ bool CUDA::CudaIntercept(float &time, float *out_scalar, unsigned int * out_inte
 __host__ void CUDA::InitOld(float3 * A, uint3 * B, float4 * Normal, float3 * C, unsigned int sA, unsigned int sB, unsigned int sN, unsigned int sC){
 
 	//Check if object C can be stored in shared memory
-	cudaDeviceProp prop;
+	/*cudaDeviceProp prop;
 
 	checkCudaErrors(cudaSetDevice(0));
 
@@ -328,7 +336,7 @@ __host__ void CUDA::InitOld(float3 * A, uint3 * B, float4 * Normal, float3 * C, 
 	sizeN = sN;
 	
 
-	/* initialize random seed: */
+	// initialize random seed: 
 	srand (unsigned int(time(NULL)));
 
 	
@@ -336,7 +344,9 @@ __host__ void CUDA::InitOld(float3 * A, uint3 * B, float4 * Normal, float3 * C, 
 	//Allocate memory on the GPU
 	checkCudaErrors(cudaMalloc((void**)&d_p1, sizeof(float3)));
 	checkCudaErrors(cudaMalloc((void**)&d_p2, sizeC * sizeof(float3)));
-	checkCudaErrors(cudaMalloc((void**)&d_A, sizeA * sizeof(float3)));
+	checkCudaErrors(cudaMalloc((void**)&d_Ax, sizeA * sizeof(float)));
+	checkCudaErrors(cudaMalloc((void**)&d_Ay, sizeA * sizeof(float)));
+	checkCudaErrors(cudaMalloc((void**)&d_Az, sizeA * sizeof(float)));
 	checkCudaErrors(cudaMalloc((void**)&d_B, sizeB * sizeof(uint3)));
 	checkCudaErrors(cudaMalloc((void**)&d_Normal, sizeN * sizeof(float4)));
 	checkCudaErrors(cudaMalloc((void**)&d_inter, sizeof(unsigned int ) * MAX_N));
@@ -356,7 +366,7 @@ __host__ void CUDA::InitOld(float3 * A, uint3 * B, float4 * Normal, float3 * C, 
 	//Move the point p1 to center
 	m_transX = -C[0].x;
 	m_transY = -C[0].y;
-	m_transZ = -C[0].z;
+	m_transZ = -C[0].z;*/
 }
 
 //Function to copy all the geometry information into the GPU
@@ -377,23 +387,26 @@ __host__ void CUDA::Init(float3 * A, uint3 * B, float4 * Normal, float3 * C, uns
 
 	//Copy the data to reorder and duplicate points
 	
-	float3 * newA = new float3[sB * 3];
+	float * newA = new float[sB * 3 * 3];
 
 	for(unsigned int i = 0, j = 0; i < sB; ++i)
 	{
 		uint3 id = B[i]; //Triangle
 		
-		B[i].x = j;
-		newA[j] = A[id.x]; //Point 0
-		++j;
-		B[i].y = j;
-		newA[j] = A[id.y]; //Point 1
-		++j;
-		B[i].z = j;
-		newA[j] = A[id.z]; //Point 2
+		newA[j] = A[id.x].x; //Point 0
+		newA[sB + j] = A[id.y].x; //Point 0
+		newA[sB * 2 + j] = A[id.z].x; //Point 0
+
+		newA[sB * 3 + j] = A[id.x].y; //Point 1
+		newA[sB * 4 + j] = A[id.y].y; //Point 1
+		newA[sB * 5 + j] = A[id.z].y; //Point 1
+
+		newA[sB * 6 + j] = A[id.x].z; //Point 2
+		newA[sB * 7 + j] = A[id.y].z; //Point 2
+		newA[sB * 8 + j] = A[id.z].z; //Point 2
+		
 		++j;
 	}
-
 
 	sizeA = sB * 3;
 	sizeB = sB;
@@ -406,21 +419,23 @@ __host__ void CUDA::Init(float3 * A, uint3 * B, float4 * Normal, float3 * C, uns
 	//Allocate memory on the GPU
 	checkCudaErrors(cudaMalloc((void**)&d_p1, sizeof(float3)));
 	checkCudaErrors(cudaMalloc((void**)&d_p2, sizeC * sizeof(float3)));
-	checkCudaErrors(cudaMalloc((void**)&d_A, sizeA * sizeof(float3)));
+	checkCudaErrors(cudaMalloc((void**)&d_Ax, sB * 3 * sizeof(float)));
+	checkCudaErrors(cudaMalloc((void**)&d_Ay, sB * 3 * sizeof(float)));
+	checkCudaErrors(cudaMalloc((void**)&d_Az, sB * 3 * sizeof(float)));
 	checkCudaErrors(cudaMalloc((void**)&d_B, sizeB * sizeof(uint3)));
 	checkCudaErrors(cudaMalloc((void**)&d_Normal, sizeN * sizeof(float4)));
 	checkCudaErrors(cudaMalloc((void**)&d_inter, sizeof(unsigned int ) * MAX_N));
 	checkCudaErrors(cudaMalloc((void**)&d_x, sizeof(mat44) * MAX_N));
-	
 	h_x = new mat44 [MAX_N];
 
 	//Send information to the GPU
 	checkCudaErrors(cudaMemcpy(d_p1, C, sizeof(float3), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_p2, (C + sizeof(float3)), sizeC * sizeof(float3), cudaMemcpyHostToDevice));
-	checkCudaErrors(cudaMemcpy(d_A, newA, sizeA * sizeof(float3), cudaMemcpyHostToDevice));
+	checkCudaErrors(cudaMemcpy(d_Ax, newA, sB * 3 * sizeof(float) , cudaMemcpyHostToDevice));
+	checkCudaErrors(cudaMemcpy(d_Ay, newA + sB * 3, sB * 3 * sizeof(float), cudaMemcpyHostToDevice));
+	checkCudaErrors(cudaMemcpy(d_Az, newA + sB * 3 * 2, sB * 3 * sizeof(float), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_B, B, sizeB * sizeof(uint3), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_Normal, Normal, sizeN * sizeof(float4), cudaMemcpyHostToDevice));
-
 
 	delete newA;
 
@@ -436,7 +451,9 @@ __host__ void CUDA::Destroy(){
 	//Free memory
 	checkCudaErrors(cudaFree(d_p1));
 	checkCudaErrors(cudaFree(d_p2));
-	checkCudaErrors(cudaFree(d_A));
+	checkCudaErrors(cudaFree(d_Ax));
+	checkCudaErrors(cudaFree(d_Ay));
+	checkCudaErrors(cudaFree(d_Az));
 	checkCudaErrors(cudaFree(d_B));
 	checkCudaErrors(cudaFree(d_Normal));
 	checkCudaErrors(cudaFree(d_x));
