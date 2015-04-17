@@ -1,6 +1,13 @@
 #include "kernel.cuh"
 
 
+
+texture<float> tC;
+texture<float> tAx;
+texture<float> tAy;
+texture<float> tAz;
+
+
 //Ray-Triangle function to calculate the intersection
 __device__ bool ray_triangle( const float3 V1,  // Triangle vertices
                            const float3 V2,
@@ -112,8 +119,7 @@ __global__ void checkCenter(	const float3 * const p1,
 
 }
 
-__global__ void Intercept(const float3 * const p1, const float3 * const p2,
-			   const float * const Ax, const float * const Ay, const float * const Az,
+__global__ void Intercept(const float3 * const p1,
 			   const unsigned int sizeC,
 			   const unsigned int sizeB, 
 			   const mat44 * const x,
@@ -141,17 +147,17 @@ __global__ void Intercept(const float3 * const p1, const float3 * const p2,
 	
 	if(globalTid < sizeB && blockIdx.z < N) //Each thread works with one triangle in the surface (A, B)
 	{
-		v0.x = Ax[globalTid]; //Point 0
-		v1.x = Ax[globalTid + sizeB]; //Point 1
-		v2.x = Ax[globalTid + sizeB * 2]; //Point 2
+		v0.x = tex1Dfetch(tAx, globalTid); //Point 0
+		v1.x = tex1Dfetch(tAx, globalTid + sizeB);//Point 1
+		v2.x = tex1Dfetch(tAx, globalTid + sizeB * 2);//Point 2
 
-		v0.y = Ay[globalTid]; //Point 0
-		v1.y = Ay[globalTid + sizeB]; //Point 1
-		v2.y = Ay[globalTid + sizeB * 2]; //Point 2
+		v0.y = tex1Dfetch(tAy, globalTid); //Point 0
+		v1.y = tex1Dfetch(tAy, globalTid + sizeB);//Point 1
+		v2.y = tex1Dfetch(tAy, globalTid + sizeB * 2);//Point 2
 
-		v0.z = Az[globalTid]; //Point 0
-		v1.z = Az[globalTid + sizeB]; //Point 1
-		v2.z = Az[globalTid + sizeB * 2]; //Point 2
+		v0.z = tex1Dfetch(tAz, globalTid); //Point 0
+		v1.z = tex1Dfetch(tAz, globalTid + sizeB);//Point 1
+		v2.z = tex1Dfetch(tAz, globalTid + sizeB * 2);//Point 2
 		
 
 
@@ -165,7 +171,9 @@ __global__ void Intercept(const float3 * const p1, const float3 * const p2,
 		while(temp < sizeC)
 		{
 			//Copy a point of C to local data
-			sharedP2[temp] = p2[temp];
+			sharedP2[temp].x = tex1Dfetch(tC, temp * 3);
+			sharedP2[temp].y = tex1Dfetch(tC, temp * 3 + 1);
+			sharedP2[temp].z = tex1Dfetch(tC, temp * 3 + 2);
 			temp += blockDim.x;
 		}
 
@@ -282,7 +290,7 @@ bool CUDA::CudaIntercept(float &time, float *out_scalar, unsigned int * out_inte
 
 	//First test with timer
 	timer.Start();
-	Intercept<<< dim3(gridX, gridY, gridZ), dim3(blockX, 1, 1), sizeC * sizeof(float3) * 2 + sizeof(float3) * 2 + sizeof(mat44) >>>(d_p1, d_p2, d_Ax, d_Ay, d_Az, sizeC, sizeB, d_x, N, d_inter);
+	Intercept<<< dim3(gridX, gridY, gridZ), dim3(blockX, 1, 1), sizeC * sizeof(float3) * 2 + sizeof(float3) * 2 + sizeof(mat44) >>>(d_p1, sizeC, sizeB, d_x, N, d_inter);
 	timer.Stop();
 
 
@@ -431,9 +439,17 @@ __host__ void CUDA::Init(float3 * A, uint3 * B, float4 * Normal, float3 * C, uns
 	//Send information to the GPU
 	checkCudaErrors(cudaMemcpy(d_p1, C, sizeof(float3), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_p2, (C + sizeof(float3)), sizeC * sizeof(float3), cudaMemcpyHostToDevice));
+
+	cudaBindTexture( NULL, tC, (float * )d_p2, sizeC * sizeof(float3) );
+
 	checkCudaErrors(cudaMemcpy(d_Ax, newA, sB * 3 * sizeof(float) , cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_Ay, newA + sB * 3, sB * 3 * sizeof(float), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_Az, newA + sB * 3 * 2, sB * 3 * sizeof(float), cudaMemcpyHostToDevice));
+
+	cudaBindTexture( NULL, tAx, d_Ax, sB * 3 * sizeof(float) );
+	cudaBindTexture( NULL, tAy, d_Ay, sB * 3 * sizeof(float) );
+	cudaBindTexture( NULL, tAz, d_Az, sB * 3 * sizeof(float) );
+
 	checkCudaErrors(cudaMemcpy(d_B, B, sizeB * sizeof(uint3), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_Normal, Normal, sizeN * sizeof(float4), cudaMemcpyHostToDevice));
 
@@ -450,10 +466,20 @@ __host__ void CUDA::Destroy(){
 
 	//Free memory
 	checkCudaErrors(cudaFree(d_p1));
+
+	cudaUnbindTexture( tC );
+
 	checkCudaErrors(cudaFree(d_p2));
+
+
+	cudaUnbindTexture( tAx );
+	cudaUnbindTexture( tAy );
+	cudaUnbindTexture( tAz );
+
 	checkCudaErrors(cudaFree(d_Ax));
 	checkCudaErrors(cudaFree(d_Ay));
 	checkCudaErrors(cudaFree(d_Az));
+
 	checkCudaErrors(cudaFree(d_B));
 	checkCudaErrors(cudaFree(d_Normal));
 	checkCudaErrors(cudaFree(d_x));

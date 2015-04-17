@@ -19,6 +19,7 @@ using std::vector;
 
 #define MAX_M 2000
 #define MAX_N 1500
+#define MAX_C 500
 
 
 struct mat44
