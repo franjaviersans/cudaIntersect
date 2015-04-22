@@ -285,7 +285,7 @@ bool CUDA::CudaIntercept(float &time, float *out_scalar, unsigned int * out_inte
 	checkCudaErrors(cudaMemcpy(d_inter, out_inter,  sizeof(unsigned int) * N, cudaMemcpyHostToDevice));
 
 	//Each thread for each triangle
-	checkCenter<<< dim3(gridX, 1, 2), dim3(blockX, 1, 1), sizeof(float4) * 2>>>(d_p1, d_Normal, sizeB, N, d_x, d_inter);
+	checkCenter<<< dim3(gridX, 1, 2), dim3(blockX, 1, 1), sizeof(float3) * 2>>>(d_p1, d_Normal, sizeB, N, d_x, d_inter);
 	cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError()); //Check for errors;
 
 	//First test with timer
@@ -438,7 +438,8 @@ __host__ void CUDA::Init(float3 * A, uint3 * B, float4 * Normal, float3 * C, uns
 
 	//Send information to the GPU
 	checkCudaErrors(cudaMemcpy(d_p1, C, sizeof(float3), cudaMemcpyHostToDevice));
-	checkCudaErrors(cudaMemcpy(d_p2, (C + sizeof(float3)), sizeC * sizeof(float3), cudaMemcpyHostToDevice));
+	checkCudaErrors(cudaMemcpy(d_p2, (C + 1), sizeC * sizeof(float3), cudaMemcpyHostToDevice));
+
 
 	cudaBindTexture( NULL, tC, (float * )d_p2, sizeC * sizeof(float3) );
 
@@ -485,7 +486,5 @@ __host__ void CUDA::Destroy(){
 	checkCudaErrors(cudaFree(d_x));
 	checkCudaErrors(cudaFree(d_inter));
 	delete [] h_x;
-
-	printf("Destruyo\n");
 	cudaDeviceReset();
 }
