@@ -1,6 +1,15 @@
 #include "kernel.cuh"
 
 
+__device__ float dist(const float3 p1, const float3 p2)
+{
+	float x, y, z;
+	x = (p2.x - p1.x);
+	y = (p2.y - p1.y);
+	z = (p2.z - p1.z);
+	return sqrt(x * x + y * y + z * z);
+}
+
 //Ray-Triangle function to calculate the intersection
 __device__ bool ray_triangle( const float3 V1,  // Triangle vertices
                            const float3 V2,
@@ -165,11 +174,38 @@ __global__ void Intercept(const float3 * const p1, const float3 * const p2,
 
 			}
 
+
+			//Test 3, check distance with the radious of the sphere
+			if(globalinter[idN] == 0) //Only excetue if no intersection have been found
+			{
+				float d = dist((*originTransformed), vaux2); //vaux2 contain a point in C. In this case C is a circle and with this formula we calculate the radius
+				float d2 = dist((*originTransformed), v0);
+
+				if(d2 < d) //Check if the point is "in front" of the triangle
+				{
+					globalinter[idN] = 1;
+				}
+
+				d2 = dist((*originTransformed), v1);
+
+				if(d2 < d) //Check if the point is "in front" of the triangle
+				{
+					globalinter[idN] = 1;
+				}
+
+				d2 = dist((*originTransformed), v2);
+
+				if(d2 < d) //Check if the point is "in front" of the triangle
+				{
+					globalinter[idN] = 1;
+				}
+
+			}
 				
-			//Test 2, ray-triangle intersection test, to check if object C is inside (A,B)
+			//Test 3, ray-triangle intersection test, to check if object C is inside (A,B)
 			unsigned int i;
 			//Only execute if no intersection have been found
-			for(i = 1; i < sizeC && globalinter[idN] == 0; ++i)  //For all the points in C do the intersection test
+			for(i = 0; i < sizeC && globalinter[idN] == 0; ++i)  //For all the points in C do the intersection test
 			{
 				inter = ray_triangle(v0, v1, v2, (*originTransformed), dir[i]); //Intersection function with the 3 points of the triangle, the origin, and the ith direction
 				if(inter) globalinter[idN] = 1;
@@ -313,9 +349,11 @@ __host__ void CUDA::Init(float3 * A, uint3 * B, float4 * Normal, float3 * C, uns
 	h_x = new mat44 [MAX_N];
 	h_inter = new unsigned int [MAX_N];
 
+	float3 h_p1;
+	h_p1.x = h_p1.y = h_p1.z = 0.0f;
 	
 	//Send information to the GPU
-	checkCudaErrors(cudaMemcpy(d_p1, C, sizeof(float3), cudaMemcpyHostToDevice));
+	checkCudaErrors(cudaMemcpy(d_p1, (float3 * )&h_p1, sizeof(float3), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_p2, C, sizeC * sizeof(float3), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_A, A, sizeA * sizeof(float3), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_B, B, sizeB * sizeof(uint3), cudaMemcpyHostToDevice));

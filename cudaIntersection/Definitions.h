@@ -38,7 +38,6 @@
 
 
 
-
 #define BUFFER_OFFSET(i) (reinterpret_cast<void*>(i))
 #define WORLD_COORD_LOCATION 0
 #define TEXTURE_COORD_LOCATION 1
