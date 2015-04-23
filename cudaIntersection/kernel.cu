@@ -1,6 +1,15 @@
 #include "kernel.cuh"
 
 
+__device__ float distComp(const float3 p1, const float3 p2)
+{
+	float x, y, z;
+	x = (p2.x - p1.x);
+	y = (p2.y - p1.y);
+	z = (p2.z - p1.z);
+	return x * x + y * y + z * z;
+}
+
 __device__ float dist(const float3 p1, const float3 p2)
 {
 	float x, y, z;
@@ -79,7 +88,6 @@ __global__ void Intercept(const float3 * const p1, const float3 * const p2,
     float3 * origin = (float3 *)&buffer[sizeC * sizeof(float3) * 2]; //The origin will be shared to
 	float3 * originTransformed = (float3 *)&buffer[sizeC * sizeof(float3) * 2 + sizeof(float3)]; //The origin will be shared to
 	float * lt = (float *)&buffer[sizeC * sizeof(float3) * 2 + sizeof(float3) * 2]; //The shared transformation matrix
-	bool * sharedinter = (bool *)&buffer[sizeC * sizeof(float3) * 2 + sizeof(float3) * 2 + sizeof(mat44)]; //A boolean to know if the test has to stop
 
 	//Id of the thread within a block and within the grid
 	unsigned int tid = threadIdx.x;
@@ -178,22 +186,22 @@ __global__ void Intercept(const float3 * const p1, const float3 * const p2,
 			//Test 3, check distance with the radious of the sphere
 			if(globalinter[idN] == 0) //Only excetue if no intersection have been found
 			{
-				float d = dist((*originTransformed), vaux2); //vaux2 contain a point in C. In this case C is a circle and with this formula we calculate the radius
-				float d2 = dist((*originTransformed), v0);
+				float d = distComp((*originTransformed), vaux2); //vaux2 contain a point in C. In this case C is a circle and with this formula we calculate the radius
+				float d2 = distComp((*originTransformed), v0);
 
 				if(d2 < d) //Check if the point is "in front" of the triangle
 				{
 					globalinter[idN] = 1;
 				}
 
-				d2 = dist((*originTransformed), v1);
+				d2 = distComp((*originTransformed), v1);
 
 				if(d2 < d) //Check if the point is "in front" of the triangle
 				{
 					globalinter[idN] = 1;
 				}
 
-				d2 = dist((*originTransformed), v2);
+				d2 = distComp((*originTransformed), v2);
 
 				if(d2 < d) //Check if the point is "in front" of the triangle
 				{
@@ -271,7 +279,7 @@ bool CUDA::CudaIntercept(float &time, float *out_scalar, unsigned int * out_inte
 
 	//First test with timer
 	timer.Start();
-	Intercept<<< GridDim, BlockDim, sizeC * sizeof(float3) * 2 + sizeof(float3) * 2 + sizeof(bool) + sizeof(mat44) >>>(d_p1, d_p2, d_A, d_B, d_Normal, sizeC, sizeA, sizeB, d_x, N, d_inter);
+	Intercept<<< GridDim, BlockDim, sizeC * sizeof(float3) * 2 + sizeof(float3) * 2 + sizeof(mat44) >>>(d_p1, d_p2, d_A, d_B, d_Normal, sizeC, sizeA, sizeB, d_x, N, d_inter);
 	timer.Stop();
 
 
